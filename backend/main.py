@@ -70,12 +70,13 @@ def get_config():
 
 # Authentication endpoints
 @app.post("/api/auth/google", response_model=AuthResponse)
-async def google_auth(auth_request: GoogleAuthRequest, db: Session = Depends(get_db)):
+def google_auth(auth_request: GoogleAuthRequest, db: Session = Depends(get_db)):
     """
     Authenticate user with Google OAuth token and return JWT access token.
     """
     try:
-        user_info = await verify_google_token(auth_request.token)
+        import asyncio
+        user_info = asyncio.run(verify_google_token(auth_request.token))
         user = get_or_create_user(db, user_info)
 
         access_token = create_access_token(data={"user_id": user.id})
@@ -95,7 +96,7 @@ async def google_auth(auth_request: GoogleAuthRequest, db: Session = Depends(get
         raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
 
 @app.get("/api/auth/me", response_model=UserResponse)
-async def get_current_user_info(current_user: User = Depends(get_current_user)):
+def get_current_user_info(current_user: User = Depends(get_current_user)):
     """
     Get current authenticated user information.
     """
@@ -108,7 +109,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
     )
 
 @app.get("/api/settings")
-async def get_user_settings(
+def get_user_settings(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -120,7 +121,7 @@ async def get_user_settings(
     }
 
 @app.patch("/api/settings")
-async def update_user_settings(
+def update_user_settings(
     settings: dict,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -389,7 +390,7 @@ async def transcribe_audio_file(
         raise HTTPException(status_code=500, detail=f"Failed to transcribe audio: {str(e)}")
 
 @app.post("/api/transcribe", response_model=VoiceTranscriptionResponse)
-async def transcribe_text(
+def transcribe_text(
     transcription: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
