@@ -108,3 +108,45 @@ If any information is missing or unclear, make reasonable assumptions based on c
             raise ValueError(f"Failed to parse Claude response as JSON: {str(e)}")
         except Exception as e:
             raise ValueError(f"Error processing expense with Claude: {str(e)}")
+
+    async def transcribe_audio(self, audio_base64: str, media_type: str) -> str:
+        """
+        Transcribe audio using Claude's audio understanding capability.
+
+        Args:
+            audio_base64: Base64 encoded audio data
+            media_type: MIME type of the audio (e.g., 'audio/webm', 'audio/mp4')
+
+        Returns:
+            Transcribed text
+        """
+        try:
+            message = self.client.messages.create(
+                model="claude-sonnet-4-5-20250929",
+                max_tokens=1024,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "document",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": media_type,
+                                    "data": audio_base64
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": "Please transcribe the audio. Only return the exact words spoken, nothing else."
+                            }
+                        ]
+                    }
+                ]
+            )
+
+            transcription = message.content[0].text.strip()
+            return transcription
+
+        except Exception as e:
+            raise ValueError(f"Error transcribing audio with Claude: {str(e)}")

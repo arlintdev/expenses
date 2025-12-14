@@ -266,8 +266,33 @@ def delete_expense(
     db.commit()
     return None
 
+@app.post("/api/transcribe-audio")
+async def transcribe_audio_file(
+    audio: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Transcribe audio file using Claude AI (for Safari and other browsers without Web Speech API).
+    """
+    try:
+        # Read audio file
+        audio_content = await audio.read()
+
+        # Convert to base64 for Claude API
+        audio_base64 = base64.b64encode(audio_content).decode('utf-8')
+
+        # Determine media type
+        media_type = audio.content_type or 'audio/webm'
+
+        # Use Claude to transcribe the audio
+        transcription = await claude_service.transcribe_audio(audio_base64, media_type)
+
+        return {"transcription": transcription}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to transcribe audio: {str(e)}")
+
 @app.post("/api/transcribe", response_model=VoiceTranscriptionResponse)
-async def transcribe_audio(
+async def transcribe_text(
     transcription: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
