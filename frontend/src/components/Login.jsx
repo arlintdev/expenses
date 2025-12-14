@@ -1,23 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../context/AuthContext';
 import './Login.css';
 
 const Login = () => {
   const { loginWithGoogle } = useAuth();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const handleGoogleSuccess = async (credentialResponse) => {
     try {
+      setIsLoggingIn(true);
       await loginWithGoogle(credentialResponse.credential);
     } catch (error) {
       console.error('Login error:', error);
       alert('Login failed. Please try again.');
+      setIsLoggingIn(false);
     }
   };
 
   const handleGoogleError = () => {
     console.error('Google login failed');
     alert('Google login failed. Please try again.');
+    setIsLoggingIn(false);
   };
 
   return (
@@ -33,15 +37,22 @@ const Login = () => {
         <h1>Expense Tracker</h1>
         <p className="login-subtitle">Track your expenses with voice input</p>
         <div className="login-button-wrapper">
-          <GoogleLogin
-            onSuccess={handleGoogleSuccess}
-            onError={handleGoogleError}
-            useOneTap
-            theme="filled_blue"
-            size="large"
-            text="signin_with"
-            shape="rectangular"
-          />
+          {isLoggingIn ? (
+            <div className="login-loading">
+              <div className="login-spinner"></div>
+              <p>Authenticating with Google...</p>
+            </div>
+          ) : (
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              useOneTap
+              theme="filled_blue"
+              size="large"
+              text="signin_with"
+              shape="rectangular"
+            />
+          )}
         </div>
       </div>
     </div>
