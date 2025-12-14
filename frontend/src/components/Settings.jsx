@@ -8,6 +8,7 @@ function Settings({ apiUrl }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+  const MAX_CONTEXT_LENGTH = 400;
 
   useEffect(() => {
     fetchSettings();
@@ -35,6 +36,13 @@ function Settings({ apiUrl }) {
   const handleSave = async () => {
     setSaving(true);
     setSaveMessage('');
+
+    // Validate character limit
+    if (expenseContext.length > MAX_CONTEXT_LENGTH) {
+      setSaveMessage(`Context exceeds ${MAX_CONTEXT_LENGTH} character limit`);
+      setSaving(false);
+      return;
+    }
 
     try {
       const response = await fetch(`${apiUrl}/api/settings`, {
@@ -92,7 +100,11 @@ function Settings({ apiUrl }) {
           onChange={(e) => setExpenseContext(e.target.value)}
           placeholder="Enter custom context for expense generation..."
           rows={6}
+          maxLength={MAX_CONTEXT_LENGTH}
         />
+        <div className="settings-char-count">
+          {expenseContext.length} / {MAX_CONTEXT_LENGTH} characters
+        </div>
       </div>
 
       <div className="settings-actions">

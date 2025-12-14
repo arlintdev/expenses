@@ -67,3 +67,4 @@ class VoiceTranscriptionRequest(BaseModel):
 class VoiceTranscriptionResponse(BaseModel):
     transcription: str
     parsed_expense: Optional[ExpenseCreate] = None
+    warning: Optional[str] = None

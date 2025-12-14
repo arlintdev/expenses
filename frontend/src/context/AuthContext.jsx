@@ -29,20 +29,30 @@ export const AuthProvider = ({ children }) => {
 
   const fetchUserInfo = async () => {
     try {
+      console.log('Fetching user info with token:', token ? 'Token exists' : 'No token');
+      console.log('API URL:', API_URL);
+
       const response = await fetch(`${API_URL}/api/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
+      console.log('Auth check response status:', response.status);
+
       if (response.ok) {
         const userData = await response.json();
+        console.log('User data fetched successfully');
         setUser(userData);
       } else {
+        console.error('Auth check failed with status:', response.status);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
         logout();
       }
     } catch (error) {
       console.error('Failed to fetch user info:', error);
+      console.error('Error details:', error.message);
       logout();
     } finally {
       setLoading(false);
@@ -51,6 +61,8 @@ export const AuthProvider = ({ children }) => {
 
   const loginWithGoogle = async (googleToken) => {
     try {
+      console.log('Attempting Google login, API URL:', API_URL);
+
       const response = await fetch(`${API_URL}/api/auth/google`, {
         method: 'POST',
         headers: {
@@ -59,14 +71,20 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ token: googleToken }),
       });
 
+      console.log('Login response status:', response.status);
+
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Login failed:', errorText);
         throw new Error('Authentication failed');
       }
 
       const data = await response.json();
+      console.log('Login successful, storing token');
       setToken(data.access_token);
       setUser(data.user);
       localStorage.setItem('access_token', data.access_token);
+      console.log('Token stored in localStorage');
 
       return data;
     } catch (error) {

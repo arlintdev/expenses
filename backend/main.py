@@ -129,7 +129,16 @@ async def update_user_settings(
     Update user settings including expense context.
     """
     if "expense_context" in settings:
-        current_user.expense_context = settings["expense_context"] if settings["expense_context"] else None
+        expense_context = settings["expense_context"]
+
+        # Validate character limit (400 characters)
+        if expense_context and len(expense_context) > 400:
+            raise HTTPException(
+                status_code=400,
+                detail="Expense context cannot exceed 400 characters"
+            )
+
+        current_user.expense_context = expense_context if expense_context else None
 
     db.commit()
     db.refresh(current_user)
@@ -404,11 +413,12 @@ async def transcribe_text(
         # Get user's custom expense context
         user_context = current_user.expense_context
 
-        parsed_expense = claude_service.parse_expense_from_text(transcription, category_names, user_context)
+        parsed_expense, warning = claude_service.parse_expense_from_text(transcription, category_names, user_context)
 
         return VoiceTranscriptionResponse(
             transcription=transcription,
-            parsed_expense=ExpenseCreate(**parsed_expense)
+            parsed_expense=ExpenseCreate(**parsed_expense),
+            warning=warning
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))

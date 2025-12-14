@@ -202,6 +202,12 @@ function RecordingModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
 
       const data = await response.json();
 
+      // Display warning if token limit exceeded
+      if (data.warning) {
+        console.warn('Token limit warning:', data.warning);
+        setError(`Warning: ${data.warning}. Consider shortening your custom context in Settings.`);
+      }
+
       if (data.parsed_expense) {
         await createExpense(data.parsed_expense);
       } else {

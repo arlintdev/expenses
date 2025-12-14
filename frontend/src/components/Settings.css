@@ -76,6 +76,13 @@
   border-color: #667eea;
 }
 
+.settings-char-count {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #666;
+  text-align: right;
+}
+
 .settings-actions {
   display: flex;
   align-items: center;

@@ -17,7 +17,7 @@ class ClaudeService:
             raise ValueError("ANTHROPIC_API_KEY environment variable is not set")
         self.client = Anthropic(api_key=api_key)
 
-    def parse_expense_from_text(self, transcription: str, available_categories: list = None, user_context: str = None) -> Dict[str, Any]:
+    def parse_expense_from_text(self, transcription: str, available_categories: list = None, user_context: str = None) -> tuple[Dict[str, Any], Optional[str]]:
         """
         Parse expense information from transcribed text using Claude API.
 
@@ -25,6 +25,9 @@ class ClaudeService:
             transcription: The transcribed text to parse
             available_categories: List of user's existing categories for context
             user_context: Custom context provided by the user for expense generation
+
+        Returns:
+            Tuple of (parsed_data, warning_message)
         """
         today = datetime.now().strftime("%Y-%m-%d")
 
@@ -66,13 +69,22 @@ If any information is missing or unclear, make reasonable assumptions based on c
         try:
             message = self.client.messages.create(
                 model="claude-sonnet-4-5-20250929",
-                max_tokens=1024,
+                max_tokens=1000,
                 messages=[
                     {"role": "user", "content": prompt}
                 ]
             )
 
             response_text = message.content[0].text.strip()
+
+            # Check token usage
+            input_tokens = message.usage.input_tokens
+            output_tokens = message.usage.output_tokens
+
+            warning_message = None
+            if input_tokens > 1000 or output_tokens > 1000:
+                warning_message = f"Token limit exceeded: Input={input_tokens}/1000, Output={output_tokens}/1000"
+                print(f"⚠️  {warning_message}")
 
             # Extract JSON from response (handle markdown code blocks)
             if response_text.startswith("```"):
@@ -108,7 +120,7 @@ If any information is missing or unclear, make reasonable assumptions based on c
             # Parse date string to datetime
             parsed_data["date"] = datetime.strptime(parsed_data["date"], "%Y-%m-%d")
 
-            return parsed_data
+            return parsed_data, warning_message
 
         except json.JSONDecodeError as e:
             raise ValueError(f"Failed to parse Claude response as JSON: {str(e)}")
@@ -129,7 +141,7 @@ If any information is missing or unclear, make reasonable assumptions based on c
         try:
             message = self.client.messages.create(
                 model="claude-sonnet-4-5-20250929",
-                max_tokens=1024,
+                max_tokens=1000,
                 messages=[
                     {
                         "role": "user",
@@ -152,6 +164,14 @@ If any information is missing or unclear, make reasonable assumptions based on c
             )
 
             transcription = message.content[0].text.strip()
+
+            # Check token usage
+            input_tokens = message.usage.input_tokens
+            output_tokens = message.usage.output_tokens
+
+            if input_tokens > 1000 or output_tokens > 1000:
+                print(f"⚠️  Token limit warning (transcription): Input={input_tokens}/1000, Output={output_tokens}/1000")
+
             return transcription
 
         except Exception as e:
