@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { MdDescription, MdPerson, MdBuild, MdAccessTime, MdLocalOffer } from 'react-icons/md';
+import PullToRefresh from 'react-pull-to-refresh';
 import './ExpenseList.css';
 
 function ExpenseList({ apiUrl, onDelete }) {
@@ -15,6 +16,7 @@ function ExpenseList({ apiUrl, onDelete }) {
   const [editingExpenseId, setEditingExpenseId] = useState(null);
   const [editFormData, setEditFormData] = useState({});
   const [availableCategories, setAvailableCategories] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
   const observer = useRef();
   const lastExpenseRef = useCallback(node => {
     if (loading) return;
@@ -130,6 +132,20 @@ function ExpenseList({ apiUrl, onDelete }) {
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setExpenses([]);
+    setPage(0);
+    setHasMore(true);
+
+    // Wait a bit to show the refresh animation
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Fetch fresh data
+    await fetchExpenses();
+    setRefreshing(false);
+  };
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -240,7 +256,8 @@ function ExpenseList({ apiUrl, onDelete }) {
           <p>No expenses found.</p>
         </div>
       ) : (
-        <div className="expenses-scroll">
+        <PullToRefresh onRefresh={handleRefresh} className="pull-to-refresh-wrapper">
+          <div className="expenses-scroll">
           {expenses.map((expense, index) => {
             const isLast = index === expenses.length - 1;
             const isEditing = editingExpenseId === expense.id;
@@ -390,7 +407,8 @@ function ExpenseList({ apiUrl, onDelete }) {
           {loading && (
             <div className="loading-more">Loading more...</div>
           )}
-        </div>
+          </div>
+        </PullToRefresh>
       )}
     </div>
   );
