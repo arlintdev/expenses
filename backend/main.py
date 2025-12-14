@@ -40,9 +40,7 @@ init_db()
 # Initialize Claude service
 claude_service = ClaudeService()
 
-@app.get("/")
-def read_root():
-    return {"message": "Expense Tracker API", "version": "1.0.0"}
+# Root endpoint is defined later for serving static files if they exist
 
 @app.get("/api/health")
 def health_check():
@@ -331,15 +329,25 @@ static_dir = Path(__file__).parent / "static"
 if static_dir.exists():
     app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
 
+    @app.get("/")
+    async def serve_root():
+        """Serve the React SPA at root"""
+        index_file = static_dir / "index.html"
+        if index_file.exists():
+            return FileResponse(index_file)
+        return {"message": "Expense Tracker API", "version": "1.0.0"}
+
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
         """Serve the React SPA for all non-API routes"""
-        # Serve index.html for all routes except /api
-        if not full_path.startswith("api"):
-            index_file = static_dir / "index.html"
-            if index_file.exists():
-                return FileResponse(index_file)
-        # If it's an API route that doesn't exist, let FastAPI handle 404
+        # Don't intercept API routes
+        if full_path.startswith("api"):
+            raise HTTPException(status_code=404, detail="Not found")
+
+        # Serve index.html for all other routes (SPA routing)
+        index_file = static_dir / "index.html"
+        if index_file.exists():
+            return FileResponse(index_file)
         raise HTTPException(status_code=404, detail="Not found")
 
 if __name__ == "__main__":
