@@ -62,8 +62,10 @@ def get_config():
     """
     Get public configuration for the frontend.
     """
+    client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+    print(f"📋 /api/config called - Returning Client ID: {client_id[:20]}..." if client_id else "📋 /api/config called - Client ID is EMPTY!")
     return {
-        "googleClientId": os.getenv("GOOGLE_CLIENT_ID", "")
+        "googleClientId": client_id
     }
 
 # Authentication endpoints
