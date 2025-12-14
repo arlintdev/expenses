@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { MdDescription, MdPerson, MdBuild, MdAccessTime, MdLocalOffer } from 'react-icons/md';
 import './ExpenseList.css';
 
 function ExpenseList({ apiUrl, onDelete }) {
@@ -269,7 +270,7 @@ function ExpenseList({ apiUrl, onDelete }) {
 
                 {/* Title/Description */}
                 <div className="expense-field">
-                  <span className="field-icon" title="Title/Description">📝</span>
+                  <MdDescription className="field-icon" title="Title/Description" />
                   {isEditing ? (
                     <input
                       type="text"
@@ -285,7 +286,7 @@ function ExpenseList({ apiUrl, onDelete }) {
 
                 {/* Who it's for */}
                 <div className="expense-field">
-                  <span className="field-icon" title="Who it's for">👤</span>
+                  <MdPerson className="field-icon" title="Who it's for" />
                   {isEditing ? (
                     <input
                       type="text"
@@ -301,7 +302,7 @@ function ExpenseList({ apiUrl, onDelete }) {
 
                 {/* Materials */}
                 <div className="expense-field">
-                  <span className="field-icon" title="Materials">🔧</span>
+                  <MdBuild className="field-icon" title="Materials" />
                   {isEditing ? (
                     <input
                       type="text"
@@ -317,7 +318,7 @@ function ExpenseList({ apiUrl, onDelete }) {
 
                 {/* Hours */}
                 <div className="expense-field">
-                  <span className="field-icon" title="Hours">⏱️</span>
+                  <MdAccessTime className="field-icon" title="Hours" />
                   {isEditing ? (
                     <input
                       type="number"
@@ -336,7 +337,7 @@ function ExpenseList({ apiUrl, onDelete }) {
 
                 {/* Category */}
                 <div className="expense-field">
-                  <span className="field-icon" title="Category">🏷️</span>
+                  <MdLocalOffer className="field-icon" title="Category" />
                   {isEditing ? (
                     <>
                       <input

@@ -138,9 +138,10 @@
 }
 
 .field-icon {
-  font-size: 1.25rem;
+  font-size: 1.4rem;
   min-width: 28px;
-  text-align: center;
+  color: #667eea;
+  flex-shrink: 0;
 }
 
 .field-value {
