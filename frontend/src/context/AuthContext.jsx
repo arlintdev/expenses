@@ -15,7 +15,9 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('access_token'));
   const [loading, setLoading] = useState(true);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  // Use relative URL when in production (served from same origin)
+  // Use VITE_API_URL for development
+  const API_URL = import.meta.env.VITE_API_URL || '';
 
   useEffect(() => {
     if (token) {

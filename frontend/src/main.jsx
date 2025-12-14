@@ -5,7 +5,17 @@ import './index.css'
 import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Use relative URL when in production (served from same origin)
+// Use VITE_API_URL for development
+const getApiUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  // In production, use relative URL (same origin)
+  return '';
+};
+
+const API_URL = getApiUrl();
 
 function Root() {
   const [config, setConfig] = useState(null);

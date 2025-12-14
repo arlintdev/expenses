@@ -7,7 +7,9 @@ import Login from './components/Login';
 import CategoryManager from './components/CategoryManager';
 import { useAuth } from './context/AuthContext';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Use relative URL when in production (served from same origin)
+// Use VITE_API_URL for development
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 function App() {
   const { user, loading, logout, getAuthHeader } = useAuth();
