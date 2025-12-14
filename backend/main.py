@@ -40,6 +40,17 @@ init_db()
 # Initialize Claude service
 claude_service = ClaudeService()
 
+# Log environment configuration at startup
+print("\n" + "="*60)
+print("🚀 Expense Tracker Starting Up")
+print("="*60)
+print(f"CORS Origins: {os.getenv('CORS_ORIGINS', 'http://localhost:5173,http://localhost:3000')}")
+print(f"Database URL: {os.getenv('DATABASE_URL', 'sqlite:///./expenses.db')}")
+print(f"Google Client ID: {os.getenv('GOOGLE_CLIENT_ID', 'Not set')[:20]}...")
+print(f"Anthropic API Key: {'Set ✓' if os.getenv('ANTHROPIC_API_KEY') else 'Not set ✗'}")
+print(f"JWT Secret Key: {'Set ✓' if os.getenv('JWT_SECRET_KEY') else 'Not set ✗'}")
+print("="*60 + "\n")
+
 # Root endpoint is defined later for serving static files if they exist
 
 @app.get("/api/health")
