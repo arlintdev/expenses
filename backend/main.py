@@ -445,12 +445,14 @@ async def get_expense(
     Get a specific expense by ID (only if it belongs to current user).
     """
     result = await db.execute(
-        select(Expense).filter(
+        select(Expense)
+        .options(joinedload(Expense.tags))
+        .filter(
             Expense.id == expense_id,
             Expense.user_id == current_user.id
         )
     )
-    expense = result.scalar_one_or_none()
+    expense = result.unique().scalar_one_or_none()
     if expense is None:
         raise HTTPException(status_code=404, detail="Expense not found")
     return expense

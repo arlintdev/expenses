@@ -87,3 +87,8 @@
     display: none;
   }
 }
+
+/* Link styling to match button behavior */
+.bottom-nav a {
+  text-decoration: none;
+}

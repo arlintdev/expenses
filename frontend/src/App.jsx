@@ -1,29 +1,37 @@
 import { useState } from 'react';
+import { HashRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import './App.css';
-import Dashboard from './components/Dashboard';
-import ExpenseList from './components/ExpenseList';
+import DashboardRoute from './routes/DashboardRoute';
+import ExpensesRoute from './routes/ExpensesRoute';
+import ExpenseEditRoute from './routes/ExpenseEditRoute';
+import TagsRoute from './routes/TagsRoute';
+import SettingsRoute from './routes/SettingsRoute';
 import BottomNav from './components/BottomNav';
 import AddExpenseModal from './components/AddExpenseModal';
 import Login from './components/Login';
-import TagManager from './components/CategoryManager';
-import Settings from './components/Settings';
 import { useAuth } from './context/AuthContext';
 
 // Use relative URL when in production (served from same origin)
 // Use VITE_API_URL for development
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-function App() {
-  const { user, loading, logout, getAuthHeader } = useAuth();
+function AppContent() {
+  const { user, logout, getAuthHeader } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
+  // Derive active tab from current route
+  const activeTab = location.pathname.split('/')[1] || 'dashboard';
+
   const handleExpenseAdded = (newExpense) => {
-    setRefreshTrigger(prev => prev + 1);
-    setActiveTab('expenses');
+    setIsModalOpen(false);
+    // Navigate to expenses if not already there
+    if (!location.pathname.startsWith('/expenses')) {
+      navigate('/expenses');
+    }
   };
 
   const handleExpenseDeleted = async (expenseId) => {
@@ -43,18 +51,6 @@ function App() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="app loading-screen">
-        <div className="spinner"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <Login />;
-  }
-
   return (
     <div className="app">
       {/* Desktop Sidebar Navigation */}
@@ -70,9 +66,9 @@ function App() {
         </div>
 
         <nav className="sidebar-nav">
-          <button
+          <Link
+            to="/dashboard"
             className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setActiveTab('dashboard')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="3" y="3" width="7" height="7"></rect>
@@ -81,40 +77,40 @@ function App() {
               <rect x="3" y="14" width="7" height="7"></rect>
             </svg>
             <span>Dashboard</span>
-          </button>
+          </Link>
 
-          <button
+          <Link
+            to="/expenses"
             className={`nav-link ${activeTab === 'expenses' ? 'active' : ''}`}
-            onClick={() => setActiveTab('expenses')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
               <polyline points="9 22 9 12 15 12 15 22" />
             </svg>
             <span>Expenses</span>
-          </button>
+          </Link>
 
-          <button
-            className={`nav-link ${activeTab === 'categories' ? 'active' : ''}`}
-            onClick={() => setActiveTab('categories')}
+          <Link
+            to="/tags"
+            className={`nav-link ${activeTab === 'tags' ? 'active' : ''}`}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
               <line x1="7" y1="7" x2="7.01" y2="7" />
             </svg>
             <span>Tags</span>
-          </button>
+          </Link>
 
-          <button
+          <Link
+            to="/settings"
             className={`nav-link ${activeTab === 'settings' ? 'active' : ''}`}
-            onClick={() => setActiveTab('settings')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="3" />
               <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24" />
             </svg>
             <span>Settings</span>
-          </button>
+          </Link>
         </nav>
 
         <div className="sidebar-footer">
@@ -209,30 +205,20 @@ function App() {
           </div>
         )}
 
-        <div className={`tab-content ${activeTab === 'dashboard' ? 'active' : ''}`}>
-          <Dashboard apiUrl={API_URL} />
-        </div>
-
-        <div className={`tab-content ${activeTab === 'expenses' ? 'active' : ''}`}>
-          <ExpenseList
-            onDelete={handleExpenseDeleted}
-            apiUrl={API_URL}
-            key={refreshTrigger}
-          />
-        </div>
-
-        <div className={`tab-content ${activeTab === 'categories' ? 'active' : ''}`}>
-          <TagManager apiUrl={API_URL} />
-        </div>
-
-        <div className={`tab-content ${activeTab === 'settings' ? 'active' : ''}`}>
-          <Settings apiUrl={API_URL} />
-        </div>
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardRoute apiUrl={API_URL} />} />
+          <Route path="/expenses" element={<ExpensesRoute apiUrl={API_URL} onDelete={handleExpenseDeleted} />} />
+          <Route path="/expenses/:id/edit" element={<ExpenseEditRoute apiUrl={API_URL} />} />
+          <Route path="/tags" element={<TagsRoute apiUrl={API_URL} />} />
+          <Route path="/categories" element={<Navigate to="/tags" replace />} />
+          <Route path="/settings" element={<SettingsRoute apiUrl={API_URL} />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
       </main>
 
       <BottomNav
         activeTab={activeTab}
-        onTabChange={setActiveTab}
         onMicClick={() => setIsModalOpen(true)}
       />
 
@@ -253,6 +239,28 @@ function App() {
         </svg>
       </button>
     </div>
+  );
+}
+
+function App() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="app loading-screen">
+        <div className="spinner"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
+  return (
+    <HashRouter>
+      <AppContent />
+    </HashRouter>
   );
 }
 

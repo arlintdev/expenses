@@ -112,9 +112,9 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
         setUseSpeechRecognition(true);
         await startSpeechRecognition();
       } else {
-        // Fallback to MediaRecorder for Safari and other browsers
-        setUseSpeechRecognition(false);
-        await startMediaRecorder();
+        // Voice recording not supported on this browser
+        setError('Voice recording is only supported on Chrome and Edge browsers. Please use Screenshot or Photo upload instead.');
+        setIsRecording(false);
       }
     } catch (err) {
       setError(`Failed to start recording: ${err.message}`);

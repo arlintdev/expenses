@@ -1,23 +1,34 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { MdDescription, MdPerson, MdBuild, MdAccessTime, MdLocalOffer } from 'react-icons/md';
 import TagInput from './TagInput';
 import './ExpenseList.css';
 
-function ExpenseList({ apiUrl, onDelete }) {
+function ExpenseList({
+  apiUrl,
+  onDelete,
+  initialMonth = 'all',
+  initialYear = new Date().getFullYear(),
+  initialTags = [],
+  initialSearch = ''
+}) {
   const { getAuthHeader } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
-  const [selectedMonth, setSelectedMonth] = useState('all');
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedTags, setSelectedTags] = useState([]);
-  const [searchText, setSearchText] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
+  const [selectedYear, setSelectedYear] = useState(initialYear);
+  const [selectedTags, setSelectedTags] = useState(initialTags);
+  const [searchText, setSearchText] = useState(initialSearch);
   const [deletingId, setDeletingId] = useState(null);
-  const [editingExpenseId, setEditingExpenseId] = useState(null);
-  const [editFormData, setEditFormData] = useState({});
   const [availableTags, setAvailableTags] = useState([]);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [sortBy, setSortBy] = useState('date_desc'); // date_desc, date_asc, created_desc, created_asc
+  const [showFiltersModal, setShowFiltersModal] = useState(false);
   const observer = useRef();
   const scrollContainerRef = useRef();
   const lastExpenseRef = useCallback(node => {
@@ -97,56 +108,30 @@ function ExpenseList({ apiUrl, onDelete }) {
     setDeletingId(null);
   };
 
-  const startEditing = (expense) => {
-    setEditingExpenseId(expense.id);
-    setEditFormData({
-      description: expense.description || '',
-      recipient: expense.recipient || '',
-      materials: expense.materials || '',
-      hours: expense.hours || '',
-      tags: expense.tags || [],
-      amount: expense.amount || '',
-      date: expense.date || ''
-    });
-  };
+  // Sync filters with URL params
+  useEffect(() => {
+    const params = {};
+    if (selectedMonth !== 'all') params.month = selectedMonth;
+    if (selectedYear !== new Date().getFullYear()) params.year = selectedYear.toString();
+    if (selectedTags.length > 0) params.tags = selectedTags.join(',');
+    if (searchText) params.search = searchText;
 
-  const cancelEditing = () => {
-    setEditingExpenseId(null);
-    setEditFormData({});
-  };
+    setSearchParams(params, { replace: true });
+  }, [selectedMonth, selectedYear, selectedTags, searchText, setSearchParams]);
 
-  const saveExpense = async (expenseId) => {
-    try {
-      console.log('Saving expense with data:', editFormData);
-      const response = await fetch(`${apiUrl}/api/expenses/${expenseId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        body: JSON.stringify(editFormData),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Backend error:', errorText);
-        throw new Error(`Failed to update expense: ${response.status} ${errorText}`);
+  // Close dropdown menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (openMenuId !== null) {
+        setOpenMenuId(null);
       }
+    };
 
-      const updatedExpense = await response.json();
-      console.log('Updated expense received:', updatedExpense);
-
-      // Use functional update to avoid stale closure
-      setExpenses(prevExpenses =>
-        prevExpenses.map(e => e.id === expenseId ? updatedExpense : e)
-      );
-      setEditingExpenseId(null);
-      setEditFormData({});
-    } catch (error) {
-      console.error('Error updating expense:', error);
-      alert(`Failed to update expense: ${error.message}`);
+    if (openMenuId !== null) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
     }
-  };
+  }, [openMenuId]);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -245,7 +230,28 @@ function ExpenseList({ apiUrl, onDelete }) {
     }
 
     return true;
+  }).sort((a, b) => {
+    // Apply sorting
+    switch (sortBy) {
+      case 'date_desc':
+        return new Date(b.date) - new Date(a.date);
+      case 'date_asc':
+        return new Date(a.date) - new Date(b.date);
+      case 'created_desc':
+        return new Date(b.created_at) - new Date(a.created_at);
+      case 'created_asc':
+        return new Date(a.created_at) - new Date(b.created_at);
+      default:
+        return 0;
+    }
   });
+
+  // Helper to check if expense was created in last 5 minutes
+  const isRecentlyAdded = (expense) => {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const createdAt = new Date(expense.created_at);
+    return createdAt > fiveMinutesAgo;
+  };
 
   const totalAmount = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
 
@@ -263,63 +269,121 @@ function ExpenseList({ apiUrl, onDelete }) {
 
   return (
     <div className="expense-list">
-      <div className="filters">
-        <div className="filters-row">
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="filter-select"
-          >
-            {months.map(month => (
-              <option key={month.value} value={month.value}>{month.label}</option>
-            ))}
-          </select>
+      {/* Compact Toolbar */}
+      <div className="expense-toolbar">
+        <button
+          className={`filter-button ${hasActiveFilters ? 'active' : ''}`}
+          onClick={() => setShowFiltersModal(true)}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="4" y1="21" x2="4" y2="14"></line>
+            <line x1="4" y1="10" x2="4" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12" y2="3"></line>
+            <line x1="20" y1="21" x2="20" y2="16"></line>
+            <line x1="20" y1="12" x2="20" y2="3"></line>
+            <line x1="1" y1="14" x2="7" y2="14"></line>
+            <line x1="9" y1="8" x2="15" y2="8"></line>
+            <line x1="17" y1="16" x2="23" y2="16"></line>
+          </svg>
+          {hasActiveFilters && <span className="filter-badge">{
+            (selectedMonth !== 'all' ? 1 : 0) +
+            (selectedYear !== new Date().getFullYear() ? 1 : 0) +
+            (selectedTags.length > 0 ? 1 : 0)
+          }</span>}
+        </button>
 
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            className="filter-select"
-          >
-            {years.map(year => (
-              <option key={year} value={year}>{year}</option>
-            ))}
-          </select>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          className="sort-select"
+        >
+          <option value="date_desc">Date (newest)</option>
+          <option value="date_asc">Date (oldest)</option>
+          <option value="created_desc">Recently added</option>
+          <option value="created_asc">Oldest first</option>
+        </select>
 
-          <div className="tag-filter-section">
-            <label>Filter by tags:</label>
-            <TagInput
-              tags={selectedTags}
-              onChange={setSelectedTags}
-              availableTags={availableTags}
-              placeholder="Select tags to filter..."
-            />
+        <input
+          type="text"
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          placeholder="Search..."
+          className="toolbar-search"
+        />
+
+        <button className="export-button" onClick={handleExportCSV} title="Export CSV">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </button>
+      </div>
+
+      {/* Filters Modal */}
+      {showFiltersModal && (
+        <div className="filters-modal-overlay" onClick={() => setShowFiltersModal(false)}>
+          <div className="filters-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="filters-modal-header">
+              <h3>Filters</h3>
+              <button onClick={() => setShowFiltersModal(false)} className="modal-close">&times;</button>
+            </div>
+
+            <div className="filters-modal-body">
+              <div className="filter-group">
+                <label>Month</label>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="filter-select"
+                >
+                  {months.map(month => (
+                    <option key={month.value} value={month.value}>{month.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>Year</label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                  className="filter-select"
+                >
+                  {years.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>Tags</label>
+                <TagInput
+                  tags={selectedTags}
+                  onChange={setSelectedTags}
+                  availableTags={availableTags}
+                  placeholder="Select tags..."
+                />
+              </div>
+
+              <div className="filters-modal-actions">
+                <button onClick={handleClearFilters} className="clear-button">
+                  Clear All
+                </button>
+                <button onClick={() => setShowFiltersModal(false)} className="apply-button">
+                  Apply
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-
-        <div className="filters-row">
-          <input
-            type="text"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            placeholder="Search expenses..."
-            className="search-input"
-          />
-
-          {hasActiveFilters && (
-            <button onClick={handleClearFilters} className="clear-filters-button">
-              Clear Filters
-            </button>
-          )}
-        </div>
-      </div>
+      )}
 
       <div className="summary">
         <div className="total-amount">
           Total: {formatAmount(totalAmount)}
         </div>
-        <button className="export-csv-button" onClick={handleExportCSV}>
-          Export CSV
-        </button>
       </div>
 
       {filteredExpenses.length === 0 && !loading ? (
@@ -347,13 +411,13 @@ function ExpenseList({ apiUrl, onDelete }) {
               <tbody>
                 {filteredExpenses.map((expense, index) => {
                   const isLast = index === expenses.length - 1;
-                  const isEditing = editingExpenseId === expense.id;
+                  const isEditing = false; // Inline editing disabled - use dedicated edit page
 
                   return (
                     <tr
                       key={expense.id}
                       ref={isLast ? lastExpenseRef : null}
-                      className={isEditing ? 'editing' : ''}
+                      className={`${isEditing ? 'editing' : ''} ${isRecentlyAdded(expense) ? 'recently-added' : ''}`}
                     >
                       <td className="table-date">
                         {isEditing ? (
@@ -466,7 +530,7 @@ function ExpenseList({ apiUrl, onDelete }) {
                             </>
                           ) : (
                             <>
-                              <button onClick={() => startEditing(expense)} className="edit-button">
+                              <button onClick={() => navigate(`/expenses/${expense.id}/edit`)} className="edit-button">
                                 Edit
                               </button>
                               <button
@@ -490,161 +554,98 @@ function ExpenseList({ apiUrl, onDelete }) {
           {/* Mobile Card View */}
           {filteredExpenses.map((expense, index) => {
             const isLast = index === expenses.length - 1;
-            const isEditing = editingExpenseId === expense.id;
 
             return (
               <div
                 key={expense.id}
                 ref={isLast ? lastExpenseRef : null}
-                className={`expense-card ${isEditing ? 'editing' : ''}`}
+                className={`expense-card ${isRecentlyAdded(expense) ? 'recently-added' : ''}`}
               >
-                <div className="expense-header">
-                  <div className="expense-date">
-                    {isEditing ? (
-                      <input
-                        type="date"
-                        value={editFormData.date ? new Date(editFormData.date).toISOString().split('T')[0] : ''}
-                        onChange={(e) => setEditFormData({...editFormData, date: e.target.value})}
-                        className="date-input"
-                      />
-                    ) : (
-                      formatDate(expense.date)
-                    )}
-                  </div>
-                  <div className="expense-amount">
-                    {isEditing ? (
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={editFormData.amount}
-                        onChange={(e) => setEditFormData({...editFormData, amount: parseFloat(e.target.value) || 0})}
-                        className="amount-input"
-                      />
-                    ) : (
-                      formatAmount(expense.amount)
+                {/* Header with date and three-dot menu */}
+                <div className="card-header-row">
+                  <div className="expense-date">{formatDate(expense.date)}</div>
+                  <div className="card-menu-wrapper">
+                    <button
+                      className="card-menu-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuId(openMenuId === expense.id ? null : expense.id);
+                      }}
+                    >
+                      ⋮
+                    </button>
+                    {openMenuId === expense.id && (
+                      <div className="card-menu-dropdown">
+                        <button
+                          onClick={() => {
+                            setOpenMenuId(null);
+                            navigate(`/expenses/${expense.id}/edit`);
+                          }}
+                          className="menu-item"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            setOpenMenuId(null);
+                            handleDelete(expense.id);
+                          }}
+                          className="menu-item delete"
+                          disabled={deletingId === expense.id}
+                        >
+                          {deletingId === expense.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
 
-                {/* Title/Description */}
-                <div className="expense-field">
-                  <MdDescription className="field-icon" title="Title/Description" />
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={editFormData.description}
-                      onChange={(e) => setEditFormData({...editFormData, description: e.target.value})}
-                      className="field-input"
-                      placeholder="Description"
-                    />
-                  ) : (
-                    <span className="field-value" title={expense.description}>
+                {/* Two-column layout */}
+                <div className="card-body">
+                  {/* Left column - Description */}
+                  <div className="card-left">
+                    <div className="card-description" title={expense.description}>
                       {expense.description && expense.description.length > 50
                         ? expense.description.substring(0, 50) + '...'
                         : expense.description || '—'}
-                    </span>
-                  )}
-                </div>
-
-                {/* Who it's for */}
-                <div className="expense-field">
-                  <MdPerson className="field-icon" title="Who it's for" />
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={editFormData.recipient}
-                      onChange={(e) => setEditFormData({...editFormData, recipient: e.target.value})}
-                      className="field-input"
-                      placeholder="Recipient"
-                    />
-                  ) : (
-                    <span className="field-value">{expense.recipient || '—'}</span>
-                  )}
-                </div>
-
-                {/* Materials */}
-                <div className="expense-field">
-                  <MdBuild className="field-icon" title="Materials" />
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={editFormData.materials}
-                      onChange={(e) => setEditFormData({...editFormData, materials: e.target.value})}
-                      className="field-input"
-                      placeholder="Materials"
-                    />
-                  ) : (
-                    <span className="field-value">{expense.materials || '—'}</span>
-                  )}
-                </div>
-
-                {/* Hours */}
-                <div className="expense-field">
-                  <MdAccessTime className="field-icon" title="Hours" />
-                  {isEditing ? (
-                    <input
-                      type="number"
-                      step="0.25"
-                      value={editFormData.hours}
-                      onChange={(e) => setEditFormData({...editFormData, hours: parseFloat(e.target.value) || ''})}
-                      className="field-input"
-                      placeholder="Hours"
-                    />
-                  ) : (
-                    <span className="field-value">
-                      {expense.hours ? expense.hours.toFixed(2) : '—'}
-                    </span>
-                  )}
-                </div>
-
-                {/* Tags */}
-                <div className="expense-field">
-                  <MdLocalOffer className="field-icon" title="Tags" />
-                  {isEditing ? (
-                    <TagInput
-                      tags={editFormData.tags}
-                      onChange={(newTags) => setEditFormData({...editFormData, tags: newTags})}
-                      availableTags={availableTags}
-                      placeholder="Add tags..."
-                    />
-                  ) : (
-                    <div className="tags-display">
-                      {expense.tags && expense.tags.length > 0 ? (
-                        expense.tags.map((tag, idx) => (
-                          <span key={idx} className="tag-badge">{tag}</span>
-                        ))
-                      ) : (
-                        <span className="field-value">—</span>
-                      )}
                     </div>
-                  )}
+                  </div>
+
+                  {/* Right column - Details */}
+                  <div className="card-right">
+                    <div className="card-detail">
+                      <span className="detail-label">Amount:</span>
+                      <span className="detail-value amount">{formatAmount(expense.amount)}</span>
+                    </div>
+                    {expense.recipient && (
+                      <div className="card-detail">
+                        <span className="detail-label">For:</span>
+                        <span className="detail-value">{expense.recipient}</span>
+                      </div>
+                    )}
+                    {expense.materials && (
+                      <div className="card-detail">
+                        <span className="detail-label">Materials:</span>
+                        <span className="detail-value">{expense.materials}</span>
+                      </div>
+                    )}
+                    {expense.hours && (
+                      <div className="card-detail">
+                        <span className="detail-label">Hours:</span>
+                        <span className="detail-value">{expense.hours.toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="expense-actions">
-                  {isEditing ? (
-                    <>
-                      <button onClick={() => saveExpense(expense.id)} className="save-button">
-                        Save
-                      </button>
-                      <button onClick={cancelEditing} className="cancel-button">
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button onClick={() => startEditing(expense)} className="edit-button">
-                        Edit
-                      </button>
-                      <button
-                        className="delete-button"
-                        onClick={() => handleDelete(expense.id)}
-                        disabled={deletingId === expense.id}
-                      >
-                        {deletingId === expense.id ? 'Deleting...' : 'Delete'}
-                      </button>
-                    </>
-                  )}
-                </div>
+                {/* Tags at bottom */}
+                {expense.tags && expense.tags.length > 0 && (
+                  <div className="card-tags">
+                    {expense.tags.map((tag, idx) => (
+                      <span key={idx} className="tag-badge">{tag}</span>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}

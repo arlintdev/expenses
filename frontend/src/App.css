@@ -17,7 +17,7 @@
   top: 0;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  padding: 1rem;
+  padding: 0.5rem 0.75rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -28,17 +28,18 @@
 .mobile-logo {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.35rem;
 }
 
 .mobile-logo svg {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
 }
 
 .app-header h1 {
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   margin: 0;
+  font-weight: 600;
 }
 
 .user-menu {
@@ -63,8 +64,8 @@
 }
 
 .user-avatar {
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   border: 2px solid white;
 }
@@ -455,8 +456,7 @@
 
   .app-main {
     flex: 1;
-    padding: 2rem;
-    padding-bottom: 2rem;
+    padding: 0;
     overflow-y: auto;
   }
 
@@ -493,4 +493,9 @@
     width: 32px;
     height: 32px;
   }
+}
+
+/* Link styling for sidebar navigation */
+.sidebar-nav a {
+  text-decoration: none;
 }
