@@ -6,7 +6,8 @@ from google.auth.transport import requests
 import os
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from models import User, get_db
 
 # JWT settings
@@ -63,8 +64,9 @@ async def verify_google_token(token: str) -> dict:
             detail=f"Invalid Google token: {str(e)}"
         )
 
-def get_or_create_user(db: Session, google_user_data: dict) -> User:
-    user = db.query(User).filter(User.google_id == google_user_data['google_id']).first()
+async def get_or_create_user(db: AsyncSession, google_user_data: dict) -> User:
+    result = await db.execute(select(User).filter(User.google_id == google_user_data['google_id']))
+    user = result.scalar_one_or_none()
 
     if not user:
         user = User(
@@ -74,19 +76,19 @@ def get_or_create_user(db: Session, google_user_data: dict) -> User:
             picture=google_user_data.get('picture')
         )
         db.add(user)
-        db.commit()
-        db.refresh(user)
+        await db.commit()
+        await db.refresh(user)
     else:
         # Update user info if changed
         user.name = google_user_data.get('name')
         user.picture = google_user_data.get('picture')
-        db.commit()
+        await db.commit()
 
     return user
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> User:
     token = credentials.credentials
     payload = verify_token(token)
@@ -98,7 +100,8 @@ async def get_current_user(
             detail="Could not validate credentials"
         )
 
-    user = db.query(User).filter(User.id == user_id).first()
+    result = await db.execute(select(User).filter(User.id == user_id))
+    user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

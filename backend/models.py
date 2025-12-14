@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, create_engine
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import relationship
 from datetime import datetime
 import os
 from pathlib import Path
@@ -12,8 +13,15 @@ load_dotenv(dotenv_path=env_path)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./expenses.db")
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Convert sqlite:// to sqlite+aiosqlite:// for async support
+if DATABASE_URL.startswith("sqlite://"):
+    ASYNC_DATABASE_URL = DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://")
+else:
+    ASYNC_DATABASE_URL = DATABASE_URL
+
+# Create async engine
+engine = create_async_engine(ASYNC_DATABASE_URL, echo=False)
+AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 Base = declarative_base()
 
@@ -91,13 +99,16 @@ def run_migrations():
         # Don't fail startup if migrations have issues
         # This allows the app to start even if migrations fail
 
-def init_db():
-    Base.metadata.create_all(bind=engine)
+async def init_db():
+    """Initialize database tables and run migrations."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     run_migrations()
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def get_db():
+    """Async database session dependency for FastAPI."""
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()

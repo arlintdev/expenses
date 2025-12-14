@@ -2,7 +2,8 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List, Optional
 import os
 from pathlib import Path
@@ -34,8 +35,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize database
-init_db()
+# Initialize database on startup
+@app.on_event("startup")
+async def startup_event():
+    await init_db()
 
 # Initialize Claude service
 claude_service = ClaudeService()
@@ -70,14 +73,13 @@ def get_config():
 
 # Authentication endpoints
 @app.post("/api/auth/google", response_model=AuthResponse)
-def google_auth(auth_request: GoogleAuthRequest, db: Session = Depends(get_db)):
+async def google_auth(auth_request: GoogleAuthRequest, db: AsyncSession = Depends(get_db)):
     """
     Authenticate user with Google OAuth token and return JWT access token.
     """
     try:
-        import asyncio
-        user_info = asyncio.run(verify_google_token(auth_request.token))
-        user = get_or_create_user(db, user_info)
+        user_info = await verify_google_token(auth_request.token)
+        user = await get_or_create_user(db, user_info)
 
         access_token = create_access_token(data={"user_id": user.id})
 
@@ -96,7 +98,7 @@ def google_auth(auth_request: GoogleAuthRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
 
 @app.get("/api/auth/me", response_model=UserResponse)
-def get_current_user_info(current_user: User = Depends(get_current_user)):
+async def get_current_user_info(current_user: User = Depends(get_current_user)):
     """
     Get current authenticated user information.
     """
@@ -109,9 +111,9 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
     )
 
 @app.get("/api/settings")
-def get_user_settings(
+async def get_user_settings(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get user settings including expense context.
@@ -121,10 +123,10 @@ def get_user_settings(
     }
 
 @app.patch("/api/settings")
-def update_user_settings(
+async def update_user_settings(
     settings: dict,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Update user settings including expense context.
@@ -141,8 +143,8 @@ def update_user_settings(
 
         current_user.expense_context = expense_context if expense_context else None
 
-    db.commit()
-    db.refresh(current_user)
+    await db.commit()
+    await db.refresh(current_user)
 
     return {
         "expense_context": current_user.expense_context or ""
@@ -150,30 +152,36 @@ def update_user_settings(
 
 # Category endpoints
 @app.get("/api/categories", response_model=List[CategoryResponse])
-def get_categories(
+async def get_categories(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get all categories for the current user.
     """
-    categories = db.query(Category).filter(Category.user_id == current_user.id).order_by(Category.name).all()
+    result = await db.execute(
+        select(Category).filter(Category.user_id == current_user.id).order_by(Category.name)
+    )
+    categories = result.scalars().all()
     return categories
 
 @app.post("/api/categories", response_model=CategoryResponse, status_code=201)
-def create_category(
+async def create_category(
     category: CategoryCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Create a new category for the current user.
     """
     # Check if category already exists for this user
-    existing = db.query(Category).filter(
-        Category.user_id == current_user.id,
-        Category.name == category.name
-    ).first()
+    result = await db.execute(
+        select(Category).filter(
+            Category.user_id == current_user.id,
+            Category.name == category.name
+        )
+    )
+    existing = result.scalar_one_or_none()
 
     if existing:
         raise HTTPException(status_code=400, detail="Category already exists")
@@ -183,36 +191,39 @@ def create_category(
         user_id=current_user.id
     )
     db.add(db_category)
-    db.commit()
-    db.refresh(db_category)
+    await db.commit()
+    await db.refresh(db_category)
     return db_category
 
 @app.delete("/api/categories/{category_id}", status_code=204)
-def delete_category(
+async def delete_category(
     category_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Delete a category by ID (only if it belongs to current user).
     """
-    category = db.query(Category).filter(
-        Category.id == category_id,
-        Category.user_id == current_user.id
-    ).first()
+    result = await db.execute(
+        select(Category).filter(
+            Category.id == category_id,
+            Category.user_id == current_user.id
+        )
+    )
+    category = result.scalar_one_or_none()
 
     if category is None:
         raise HTTPException(status_code=404, detail="Category not found")
 
-    db.delete(category)
-    db.commit()
+    await db.delete(category)
+    await db.commit()
     return None
 
 @app.post("/api/expenses", response_model=ExpenseResponse, status_code=201)
-def create_expense(
+async def create_expense(
     expense: ExpenseCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Create a new expense entry for the current user.
@@ -229,28 +240,28 @@ def create_expense(
             user_id=current_user.id
         )
         db.add(db_expense)
-        db.commit()
-        db.refresh(db_expense)
+        await db.commit()
+        await db.refresh(db_expense)
         return db_expense
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create expense: {str(e)}")
 
 @app.get("/api/expenses", response_model=List[ExpenseResponse])
-def get_expenses(
+async def get_expenses(
     skip: int = 0,
     limit: int = 20,
     month: Optional[str] = None,
     year: Optional[int] = None,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get expenses for current user with pagination and optional month/year filtering.
     month: 1-12 for January-December
     year: 4-digit year
     """
-    query = db.query(Expense).filter(Expense.user_id == current_user.id)
+    query = select(Expense).filter(Expense.user_id == current_user.id)
 
     if year and month:
         from datetime import datetime
@@ -267,62 +278,73 @@ def get_expenses(
         end_date = datetime(year + 1, 1, 1)
         query = query.filter(Expense.date >= start_date, Expense.date < end_date)
 
-    expenses = query.order_by(Expense.date.desc()).offset(skip).limit(limit).all()
+    query = query.order_by(Expense.date.desc()).offset(skip).limit(limit)
+    result = await db.execute(query)
+    expenses = result.scalars().all()
     return expenses
 
 @app.get("/api/expenses/{expense_id}", response_model=ExpenseResponse)
-def get_expense(
+async def get_expense(
     expense_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get a specific expense by ID (only if it belongs to current user).
     """
-    expense = db.query(Expense).filter(
-        Expense.id == expense_id,
-        Expense.user_id == current_user.id
-    ).first()
+    result = await db.execute(
+        select(Expense).filter(
+            Expense.id == expense_id,
+            Expense.user_id == current_user.id
+        )
+    )
+    expense = result.scalar_one_or_none()
     if expense is None:
         raise HTTPException(status_code=404, detail="Expense not found")
     return expense
 
 @app.patch("/api/expenses/{expense_id}/category", response_model=ExpenseResponse)
-def update_expense_category(
+async def update_expense_category(
     expense_id: int,
     category: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Update the category of an expense (only if it belongs to current user).
     """
-    expense = db.query(Expense).filter(
-        Expense.id == expense_id,
-        Expense.user_id == current_user.id
-    ).first()
+    result = await db.execute(
+        select(Expense).filter(
+            Expense.id == expense_id,
+            Expense.user_id == current_user.id
+        )
+    )
+    expense = result.scalar_one_or_none()
     if expense is None:
         raise HTTPException(status_code=404, detail="Expense not found")
 
     expense.category = category if category and category.strip() else None
-    db.commit()
-    db.refresh(expense)
+    await db.commit()
+    await db.refresh(expense)
     return expense
 
 @app.patch("/api/expenses/{expense_id}", response_model=ExpenseResponse)
-def update_expense(
+async def update_expense(
     expense_id: int,
     expense_update: dict,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Update an expense (only if it belongs to current user).
     """
-    expense = db.query(Expense).filter(
-        Expense.id == expense_id,
-        Expense.user_id == current_user.id
-    ).first()
+    result = await db.execute(
+        select(Expense).filter(
+            Expense.id == expense_id,
+            Expense.user_id == current_user.id
+        )
+    )
+    expense = result.scalar_one_or_none()
     if expense is None:
         raise HTTPException(status_code=404, detail="Expense not found")
 
@@ -340,28 +362,31 @@ def update_expense(
     if "amount" in expense_update:
         expense.amount = float(expense_update["amount"])
 
-    db.commit()
-    db.refresh(expense)
+    await db.commit()
+    await db.refresh(expense)
     return expense
 
 @app.delete("/api/expenses/{expense_id}", status_code=204)
-def delete_expense(
+async def delete_expense(
     expense_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Delete an expense by ID (only if it belongs to current user).
     """
-    expense = db.query(Expense).filter(
-        Expense.id == expense_id,
-        Expense.user_id == current_user.id
-    ).first()
+    result = await db.execute(
+        select(Expense).filter(
+            Expense.id == expense_id,
+            Expense.user_id == current_user.id
+        )
+    )
+    expense = result.scalar_one_or_none()
     if expense is None:
         raise HTTPException(status_code=404, detail="Expense not found")
 
-    db.delete(expense)
-    db.commit()
+    await db.delete(expense)
+    await db.commit()
     return None
 
 @app.post("/api/transcribe-audio")
@@ -390,10 +415,10 @@ async def transcribe_audio_file(
         raise HTTPException(status_code=500, detail=f"Failed to transcribe audio: {str(e)}")
 
 @app.post("/api/transcribe", response_model=VoiceTranscriptionResponse)
-def transcribe_text(
+async def transcribe_text(
     transcription: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Process voice transcription and extract expense information using Claude.
@@ -404,11 +429,14 @@ def transcribe_text(
 
     try:
         # Get unique categories from existing expenses (excluding None/empty)
-        expense_categories = db.query(Expense.category).filter(
-            Expense.user_id == current_user.id,
-            Expense.category.isnot(None),
-            Expense.category != ''
-        ).distinct().all()
+        result = await db.execute(
+            select(Expense.category).filter(
+                Expense.user_id == current_user.id,
+                Expense.category.isnot(None),
+                Expense.category != ''
+            ).distinct()
+        )
+        expense_categories = result.all()
         category_names = [cat[0] for cat in expense_categories if cat[0]]
 
         # Get user's custom expense context
