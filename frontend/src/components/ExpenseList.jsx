@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { MdDescription, MdPerson, MdBuild, MdAccessTime, MdLocalOffer } from 'react-icons/md';
 import PullToRefresh from 'react-pull-to-refresh';
+import TagInput from './TagInput';
 import './ExpenseList.css';
 
 function ExpenseList({ apiUrl, onDelete }) {
@@ -12,12 +13,12 @@ function ExpenseList({ apiUrl, onDelete }) {
   const [page, setPage] = useState(0);
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedTags, setSelectedTags] = useState([]);
   const [searchText, setSearchText] = useState('');
   const [deletingId, setDeletingId] = useState(null);
   const [editingExpenseId, setEditingExpenseId] = useState(null);
   const [editFormData, setEditFormData] = useState({});
-  const [availableCategories, setAvailableCategories] = useState([]);
+  const [availableTags, setAvailableTags] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const observer = useRef();
   const scrollContainerRef = useRef();
@@ -43,13 +44,18 @@ function ExpenseList({ apiUrl, onDelete }) {
   }, [page, selectedMonth, selectedYear]);
 
   useEffect(() => {
-    // Update categories whenever expenses change
-    const uniqueCategories = [...new Set(
-      expenses
-        .map(e => e.category)
-        .filter(cat => cat && cat.trim())
-    )].sort();
-    setAvailableCategories(uniqueCategories);
+    // Update tags whenever expenses change
+    const allTags = new Set();
+    expenses.forEach(expense => {
+      if (expense.tags && Array.isArray(expense.tags)) {
+        expense.tags.forEach(tag => {
+          if (tag && tag.trim()) {
+            allTags.add(tag.trim());
+          }
+        });
+      }
+    });
+    setAvailableTags([...allTags].sort());
   }, [expenses]);
 
   const fetchExpenses = async () => {
@@ -100,8 +106,9 @@ function ExpenseList({ apiUrl, onDelete }) {
       recipient: expense.recipient || '',
       materials: expense.materials || '',
       hours: expense.hours || '',
-      category: expense.category || '',
-      amount: expense.amount || ''
+      tags: expense.tags || [],
+      amount: expense.amount || '',
+      date: expense.date || ''
     });
   };
 
@@ -112,6 +119,7 @@ function ExpenseList({ apiUrl, onDelete }) {
 
   const saveExpense = async (expenseId) => {
     try {
+      console.log('Saving expense with data:', editFormData);
       const response = await fetch(`${apiUrl}/api/expenses/${expenseId}`, {
         method: 'PATCH',
         headers: {
@@ -122,16 +130,23 @@ function ExpenseList({ apiUrl, onDelete }) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update expense');
+        const errorText = await response.text();
+        console.error('Backend error:', errorText);
+        throw new Error(`Failed to update expense: ${response.status} ${errorText}`);
       }
 
       const updatedExpense = await response.json();
-      setExpenses(expenses.map(e => e.id === expenseId ? updatedExpense : e));
+      console.log('Updated expense received:', updatedExpense);
+
+      // Use functional update to avoid stale closure
+      setExpenses(prevExpenses =>
+        prevExpenses.map(e => e.id === expenseId ? updatedExpense : e)
+      );
       setEditingExpenseId(null);
       setEditFormData({});
     } catch (error) {
       console.error('Error updating expense:', error);
-      alert('Failed to update expense');
+      alert(`Failed to update expense: ${error.message}`);
     }
   };
 
@@ -171,14 +186,14 @@ function ExpenseList({ apiUrl, onDelete }) {
   };
 
   const handleExportCSV = () => {
-    const headers = ['Date', 'Title/Description', 'Who It\'s For', 'Materials', 'Hours', 'Category', 'Amount'];
+    const headers = ['Date', 'Title/Description', 'Who It\'s For', 'Materials', 'Hours', 'Tags', 'Amount'];
     const csvData = expenses.map(expense => [
       formatDateForCSV(expense.date),
       expense.description,
       expense.recipient,
       expense.materials || '',
       expense.hours ? expense.hours.toFixed(2) : '',
-      expense.category || '',
+      (expense.tags || []).join('; '),
       expense.amount.toFixed(2)
     ]);
 
@@ -221,20 +236,26 @@ function ExpenseList({ apiUrl, onDelete }) {
 
   // Client-side filtering based on category and search text
   const filteredExpenses = expenses.filter(expense => {
-    // Category filter
-    if (selectedCategory !== 'all' && expense.category !== selectedCategory) {
-      return false;
+    // Tag filter - check if expense has at least one of the selected tags
+    if (selectedTags.length > 0) {
+      const expenseTags = expense.tags || [];
+      const hasMatchingTag = selectedTags.some(selectedTag =>
+        expenseTags.includes(selectedTag)
+      );
+      if (!hasMatchingTag) {
+        return false;
+      }
     }
 
-    // Search text filter (searches across description, recipient, and materials)
+    // Search text filter (searches across description, recipient, materials, and tags)
     if (searchText.trim()) {
       const searchLower = searchText.toLowerCase();
       const matchesDescription = expense.description?.toLowerCase().includes(searchLower);
       const matchesRecipient = expense.recipient?.toLowerCase().includes(searchLower);
       const matchesMaterials = expense.materials?.toLowerCase().includes(searchLower);
-      const matchesCategory = expense.category?.toLowerCase().includes(searchLower);
+      const matchesTags = expense.tags?.some(tag => tag.toLowerCase().includes(searchLower));
 
-      if (!matchesDescription && !matchesRecipient && !matchesMaterials && !matchesCategory) {
+      if (!matchesDescription && !matchesRecipient && !matchesMaterials && !matchesTags) {
         return false;
       }
     }
@@ -247,13 +268,13 @@ function ExpenseList({ apiUrl, onDelete }) {
   const handleClearFilters = () => {
     setSelectedMonth('all');
     setSelectedYear(new Date().getFullYear());
-    setSelectedCategory('all');
+    setSelectedTags([]);
     setSearchText('');
   };
 
   const hasActiveFilters = selectedMonth !== 'all' ||
     selectedYear !== new Date().getFullYear() ||
-    selectedCategory !== 'all' ||
+    selectedTags.length > 0 ||
     searchText.trim() !== '';
 
   return (
@@ -280,16 +301,15 @@ function ExpenseList({ apiUrl, onDelete }) {
             ))}
           </select>
 
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="filter-select"
-          >
-            <option value="all">All Categories</option>
-            {availableCategories.map((category, idx) => (
-              <option key={idx} value={category}>{category}</option>
-            ))}
-          </select>
+          <div className="tag-filter-section">
+            <label>Filter by tags:</label>
+            <TagInput
+              tags={selectedTags}
+              onChange={setSelectedTags}
+              availableTags={availableTags}
+              placeholder="Select tags to filter..."
+            />
+          </div>
         </div>
 
         <div className="filters-row">
@@ -335,7 +355,7 @@ function ExpenseList({ apiUrl, onDelete }) {
                   <th>Recipient</th>
                   <th>Materials</th>
                   <th>Hours</th>
-                  <th>Category</th>
+                  <th>Tags</th>
                   <th>Amount</th>
                   <th>Actions</th>
                 </tr>
@@ -351,7 +371,18 @@ function ExpenseList({ apiUrl, onDelete }) {
                       ref={isLast ? lastExpenseRef : null}
                       className={isEditing ? 'editing' : ''}
                     >
-                      <td className="table-date">{formatDate(expense.date)}</td>
+                      <td className="table-date">
+                        {isEditing ? (
+                          <input
+                            type="date"
+                            value={editFormData.date ? new Date(editFormData.date).toISOString().split('T')[0] : ''}
+                            onChange={(e) => setEditFormData({...editFormData, date: e.target.value})}
+                            className="table-input"
+                          />
+                        ) : (
+                          formatDate(expense.date)
+                        )}
+                      </td>
                       <td>
                         {isEditing ? (
                           <input
@@ -407,23 +438,22 @@ function ExpenseList({ apiUrl, onDelete }) {
                       </td>
                       <td>
                         {isEditing ? (
-                          <>
-                            <input
-                              type="text"
-                              value={editFormData.category}
-                              onChange={(e) => setEditFormData({...editFormData, category: e.target.value})}
-                              list={`categories-table-${expense.id}`}
-                              className="table-input"
-                              placeholder="Category"
-                            />
-                            <datalist id={`categories-table-${expense.id}`}>
-                              {availableCategories.map((cat, idx) => (
-                                <option key={idx} value={cat} />
-                              ))}
-                            </datalist>
-                          </>
+                          <TagInput
+                            tags={editFormData.tags}
+                            onChange={(newTags) => setEditFormData({...editFormData, tags: newTags})}
+                            availableTags={availableTags}
+                            placeholder="Add tags..."
+                          />
                         ) : (
-                          expense.category || '—'
+                          <div className="tags-display">
+                            {expense.tags && expense.tags.length > 0 ? (
+                              expense.tags.map((tag, idx) => (
+                                <span key={idx} className="tag-badge">{tag}</span>
+                              ))
+                            ) : (
+                              '—'
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="table-amount">
@@ -485,7 +515,18 @@ function ExpenseList({ apiUrl, onDelete }) {
                 className={`expense-card ${isEditing ? 'editing' : ''}`}
               >
                 <div className="expense-header">
-                  <div className="expense-date">{formatDate(expense.date)}</div>
+                  <div className="expense-date">
+                    {isEditing ? (
+                      <input
+                        type="date"
+                        value={editFormData.date ? new Date(editFormData.date).toISOString().split('T')[0] : ''}
+                        onChange={(e) => setEditFormData({...editFormData, date: e.target.value})}
+                        className="date-input"
+                      />
+                    ) : (
+                      formatDate(expense.date)
+                    )}
+                  </div>
                   <div className="expense-amount">
                     {isEditing ? (
                       <input
@@ -568,27 +609,26 @@ function ExpenseList({ apiUrl, onDelete }) {
                   )}
                 </div>
 
-                {/* Category */}
+                {/* Tags */}
                 <div className="expense-field">
-                  <MdLocalOffer className="field-icon" title="Category" />
+                  <MdLocalOffer className="field-icon" title="Tags" />
                   {isEditing ? (
-                    <>
-                      <input
-                        type="text"
-                        value={editFormData.category}
-                        onChange={(e) => setEditFormData({...editFormData, category: e.target.value})}
-                        list={`categories-${expense.id}`}
-                        className="field-input"
-                        placeholder="Category"
-                      />
-                      <datalist id={`categories-${expense.id}`}>
-                        {availableCategories.map((cat, idx) => (
-                          <option key={idx} value={cat} />
-                        ))}
-                      </datalist>
-                    </>
+                    <TagInput
+                      tags={editFormData.tags}
+                      onChange={(newTags) => setEditFormData({...editFormData, tags: newTags})}
+                      availableTags={availableTags}
+                      placeholder="Add tags..."
+                    />
                   ) : (
-                    <span className="field-value">{expense.category || '—'}</span>
+                    <div className="tags-display">
+                      {expense.tags && expense.tags.length > 0 ? (
+                        expense.tags.map((tag, idx) => (
+                          <span key={idx} className="tag-badge">{tag}</span>
+                        ))
+                      ) : (
+                        <span className="field-value">—</span>
+                      )}
+                    </div>
                   )}
                 </div>
 

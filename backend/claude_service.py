@@ -17,13 +17,13 @@ class ClaudeService:
             raise ValueError("ANTHROPIC_API_KEY environment variable is not set")
         self.client = Anthropic(api_key=api_key)
 
-    def parse_expense_from_text(self, transcription: str, available_categories: list = None, user_context: str = None) -> tuple[Dict[str, Any], Optional[str]]:
+    def parse_expense_from_text(self, transcription: str, available_tags: list = None, user_context: str = None) -> tuple[Dict[str, Any], Optional[str]]:
         """
         Parse expense information from transcribed text using Claude API.
 
         Args:
             transcription: The transcribed text to parse
-            available_categories: List of user's existing categories for context
+            available_tags: List of user's existing tags for context
             user_context: Custom context provided by the user for expense generation
 
         Returns:
@@ -31,11 +31,11 @@ class ClaudeService:
         """
         today = datetime.now().strftime("%Y-%m-%d")
 
-        # Build category context
-        category_context = ""
-        if available_categories and len(available_categories) > 0:
-            category_list = ", ".join(available_categories)
-            category_context = f"\n\nThe user has the following categories available: {category_list}\nIf the expense seems to fit one of these categories, use it. Otherwise, you can suggest a new category or leave it null."
+        # Build tag context
+        tag_context = ""
+        if available_tags and len(available_tags) > 0:
+            tag_list = ", ".join(available_tags)
+            tag_context = f"\n\nThe user has the following tags available: {tag_list}\nIf the expense seems to fit one or more of these tags, use them. You can also suggest new tags or leave it empty."
 
         # Build user context
         context_instruction = ""
@@ -47,7 +47,7 @@ class ClaudeService:
 2. recipient: Who the expense is for
 3. materials: Materials used (optional, only if mentioned - use null if not specified)
 4. hours: The number of hours worked (optional, only if mentioned - use null if not specified)
-5. category: The expense category (optional - use null if not specified){category_context}
+5. tags: An array of relevant tags/categories (optional - use empty array if not specified){tag_context}
 6. amount: The numeric amount (just the number, no currency symbols) - REQUIRED
 7. date: The date in YYYY-MM-DD format (if not mentioned, use today's date: {today}){context_instruction}
 
@@ -59,12 +59,12 @@ Respond ONLY with a JSON object in this exact format:
     "recipient": "recipient here",
     "materials": "materials_or_null",
     "hours": numeric_hours_or_null,
-    "category": "category_or_null",
+    "tags": ["tag1", "tag2"],
     "amount": numeric_amount,
     "date": "YYYY-MM-DD"
 }}
 
-If any information is missing or unclear, make reasonable assumptions based on context. The materials, hours, and category fields are optional - only include them if explicitly mentioned in the transcription."""
+If any information is missing or unclear, make reasonable assumptions based on context. The materials, hours, and tags fields are optional - only include them if explicitly mentioned in the transcription. Tags should be an array of strings (e.g., ["food", "travel"])."""
 
         try:
             message = self.client.messages.create(
@@ -113,9 +113,16 @@ If any information is missing or unclear, make reasonable assumptions based on c
             else:
                 parsed_data["hours"] = None
 
-            # Handle category (optional string field)
-            if "category" not in parsed_data or parsed_data["category"] is None:
-                parsed_data["category"] = None
+            # Handle tags (optional array field)
+            if "tags" not in parsed_data or not isinstance(parsed_data["tags"], list):
+                parsed_data["tags"] = []
+            else:
+                # Clean and deduplicate tags
+                parsed_data["tags"] = [
+                    tag.strip() for tag in parsed_data["tags"]
+                    if tag and isinstance(tag, str) and tag.strip()
+                ]
+                parsed_data["tags"] = list(dict.fromkeys(parsed_data["tags"]))  # Remove duplicates
 
             # Parse date string to datetime
             parsed_data["date"] = datetime.strptime(parsed_data["date"], "%Y-%m-%d")

@@ -2,21 +2,21 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import './CategoryManager.css';
 
-function CategoryManager({ apiUrl }) {
+function TagManager({ apiUrl }) {
   const { getAuthHeader } = useAuth();
-  const [categories, setCategories] = useState([]);
+  const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [categoryStats, setCategoryStats] = useState({});
+  const [tagStats, setTagStats] = useState({});
 
   useEffect(() => {
-    fetchExpensesAndCategories();
+    fetchExpensesAndTags();
   }, []);
 
-  const fetchExpensesAndCategories = async () => {
+  const fetchExpensesAndTags = async () => {
     try {
       setLoading(true);
-      // Fetch all expenses to extract categories
+      // Fetch all expenses to extract tags
       const response = await fetch(`${apiUrl}/api/expenses?skip=0&limit=1000`, {
         headers: getAuthHeader(),
       });
@@ -25,20 +25,24 @@ function CategoryManager({ apiUrl }) {
 
       const expenses = await response.json();
 
-      // Extract unique categories and count their usage
-      const categoryCount = {};
+      // Extract unique tags and count their usage
+      const tagCount = {};
       expenses.forEach(expense => {
-        if (expense.category && expense.category.trim()) {
-          categoryCount[expense.category] = (categoryCount[expense.category] || 0) + 1;
+        if (expense.tags && Array.isArray(expense.tags)) {
+          expense.tags.forEach(tag => {
+            if (tag && tag.trim()) {
+              tagCount[tag] = (tagCount[tag] || 0) + 1;
+            }
+          });
         }
       });
 
-      const uniqueCategories = Object.keys(categoryCount).sort();
-      setCategories(uniqueCategories);
-      setCategoryStats(categoryCount);
+      const uniqueTags = Object.keys(tagCount).sort();
+      setTags(uniqueTags);
+      setTagStats(tagCount);
       setError(null);
     } catch (err) {
-      console.error('Error fetching categories:', err);
+      console.error('Error fetching tags:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -47,8 +51,8 @@ function CategoryManager({ apiUrl }) {
 
   return (
     <div className="category-manager">
-      <h2>Your Categories</h2>
-      <p className="subtitle">Categories are automatically created from your expenses. Click on an expense to add or change its category.</p>
+      <h2>Your Tags</h2>
+      <p className="subtitle">Tags are automatically created from your expenses. You can add or change tags when editing an expense.</p>
 
       {error && (
         <div className="error-message">
@@ -60,25 +64,22 @@ function CategoryManager({ apiUrl }) {
       <div className="categories-list">
         {loading ? (
           <div className="loading-spinner"></div>
-        ) : categories.length === 0 ? (
+        ) : tags.length === 0 ? (
           <div className="empty-state">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 7V5a2 2 0 0 1 2-2h2" />
-              <path d="M17 3h2a2 2 0 0 1 2 2v2" />
-              <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
-              <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
-              <rect x="7" y="7" width="10" height="10" rx="1" />
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+              <line x1="7" y1="7" x2="7.01" y2="7" />
             </svg>
-            <p>No categories yet</p>
-            <span>Add categories to your expenses to see them here</span>
+            <p>No tags yet</p>
+            <span>Add tags to your expenses to see them here</span>
           </div>
         ) : (
           <div className="category-grid">
-            {categories.map((category) => (
-              <div key={category} className="category-card">
+            {tags.map((tag) => (
+              <div key={tag} className="category-card">
                 <div className="category-info">
-                  <div className="category-name">{category}</div>
-                  <div className="category-count">{categoryStats[category]} expense{categoryStats[category] !== 1 ? 's' : ''}</div>
+                  <div className="category-name">{tag}</div>
+                  <div className="category-count">{tagStats[tag]} expense{tagStats[tag] !== 1 ? 's' : ''}</div>
                 </div>
               </div>
             ))}
@@ -89,4 +90,4 @@ function CategoryManager({ apiUrl }) {
   );
 }
 
-export default CategoryManager;
+export default TagManager;

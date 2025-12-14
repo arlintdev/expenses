@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from typing import Optional, List
 
@@ -21,28 +21,13 @@ class AuthResponse(BaseModel):
     token_type: str
     user: UserResponse
 
-# Category schemas
-class CategoryBase(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100, description="Category name")
-
-class CategoryCreate(CategoryBase):
-    pass
-
-class CategoryResponse(CategoryBase):
-    id: int
-    user_id: int
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
 # Expense schemas
 class ExpenseBase(BaseModel):
     description: str = Field(..., min_length=1, description="What the expense is for")
     recipient: str = Field(..., min_length=1, description="Who the expense is for")
     materials: Optional[str] = Field(None, description="Materials used (optional)")
     hours: Optional[float] = Field(None, ge=0, description="Hours worked (optional)")
-    category: Optional[str] = Field(None, description="Expense category (optional)")
+    tags: Optional[List[str]] = Field(default_factory=list, description="Expense tags (optional)")
     amount: float = Field(..., gt=0, description="Amount of the expense")
     date: Optional[datetime] = Field(None, description="Date of the expense")
 
@@ -54,12 +39,24 @@ class ExpenseResponse(ExpenseBase):
     user_id: int
     materials: Optional[str]
     hours: Optional[float]
-    category: Optional[str]
+    tags: List[str] = []
     created_at: datetime
     date: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
+
+    @field_validator('tags', mode='before')
+    @classmethod
+    def extract_tag_names(cls, v):
+        """Convert Tag objects to list of tag names."""
+        print(f"Validator called with: {v}, type: {type(v)}")
+        if isinstance(v, list) and len(v) > 0:
+            if hasattr(v[0], 'name'):
+                result = [tag.name for tag in v]
+                print(f"Extracted tag names: {result}")
+                return result
+        print(f"Returning as-is: {v}")
+        return v if v else []
 
 class VoiceTranscriptionRequest(BaseModel):
     audio_data: str = Field(..., description="Base64 encoded audio data")

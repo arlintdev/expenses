@@ -37,17 +37,16 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     expenses = relationship("Expense", back_populates="user", cascade="all, delete-orphan")
-    categories = relationship("Category", back_populates="user", cascade="all, delete-orphan")
 
-class Category(Base):
-    __tablename__ = "categories"
+class Tag(Base):
+    __tablename__ = "tags"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String, nullable=False, index=True)
+    expense_id = Column(Integer, ForeignKey("expenses.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    user = relationship("User", back_populates="categories")
+    expense = relationship("Expense", back_populates="tags")
 
 class Expense(Base):
     __tablename__ = "expenses"
@@ -58,12 +57,12 @@ class Expense(Base):
     recipient = Column(String, nullable=False)
     materials = Column(String, nullable=True)
     hours = Column(Float, nullable=True)
-    category = Column(String, nullable=True)
     amount = Column(Float, nullable=False)
     date = Column(DateTime, nullable=False, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="expenses")
+    tags = relationship("Tag", back_populates="expense", cascade="all, delete-orphan")
 
 def run_migrations():
     """

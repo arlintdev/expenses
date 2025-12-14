@@ -4,7 +4,7 @@ import ExpenseList from './components/ExpenseList';
 import BottomNav from './components/BottomNav';
 import RecordingModal from './components/RecordingModal';
 import Login from './components/Login';
-import CategoryManager from './components/CategoryManager';
+import TagManager from './components/CategoryManager';
 import Settings from './components/Settings';
 import { useAuth } from './context/AuthContext';
 
@@ -206,7 +206,7 @@ function App() {
         </div>
 
         <div className={`tab-content ${activeTab === 'categories' ? 'active' : ''}`}>
-          <CategoryManager apiUrl={API_URL} />
+          <TagManager apiUrl={API_URL} />
         </div>
 
         <div className={`tab-content ${activeTab === 'settings' ? 'active' : ''}`}>

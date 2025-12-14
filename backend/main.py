@@ -3,18 +3,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
+from sqlalchemy.orm import joinedload
 from typing import List, Optional
 import os
 from pathlib import Path
 from dotenv import load_dotenv
 import base64
+from datetime import datetime
 
-from models import init_db, get_db, Expense, User, Category
+from models import init_db, get_db, Expense, User, Tag, AsyncSessionLocal
 from schemas import (
     ExpenseCreate, ExpenseResponse, VoiceTranscriptionResponse,
-    GoogleAuthRequest, AuthResponse, UserResponse,
-    CategoryCreate, CategoryResponse
+    GoogleAuthRequest, AuthResponse, UserResponse
 )
 from claude_service import ClaudeService
 from auth import verify_google_token, create_access_token, get_current_user, get_or_create_user
@@ -150,75 +151,7 @@ async def update_user_settings(
         "expense_context": current_user.expense_context or ""
     }
 
-# Category endpoints
-@app.get("/api/categories", response_model=List[CategoryResponse])
-async def get_categories(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Get all categories for the current user.
-    """
-    result = await db.execute(
-        select(Category).filter(Category.user_id == current_user.id).order_by(Category.name)
-    )
-    categories = result.scalars().all()
-    return categories
-
-@app.post("/api/categories", response_model=CategoryResponse, status_code=201)
-async def create_category(
-    category: CategoryCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Create a new category for the current user.
-    """
-    # Check if category already exists for this user
-    result = await db.execute(
-        select(Category).filter(
-            Category.user_id == current_user.id,
-            Category.name == category.name
-        )
-    )
-    existing = result.scalar_one_or_none()
-
-    if existing:
-        raise HTTPException(status_code=400, detail="Category already exists")
-
-    db_category = Category(
-        name=category.name,
-        user_id=current_user.id
-    )
-    db.add(db_category)
-    await db.commit()
-    await db.refresh(db_category)
-    return db_category
-
-@app.delete("/api/categories/{category_id}", status_code=204)
-async def delete_category(
-    category_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Delete a category by ID (only if it belongs to current user).
-    """
-    result = await db.execute(
-        select(Category).filter(
-            Category.id == category_id,
-            Category.user_id == current_user.id
-        )
-    )
-    category = result.scalar_one_or_none()
-
-    if category is None:
-        raise HTTPException(status_code=404, detail="Category not found")
-
-    await db.delete(category)
-    await db.commit()
-    return None
-
+# Expense endpoints
 @app.post("/api/expenses", response_model=ExpenseResponse, status_code=201)
 async def create_expense(
     expense: ExpenseCreate,
@@ -226,25 +159,51 @@ async def create_expense(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Create a new expense entry for the current user.
+    Create a new expense entry with tags for the current user.
     """
     try:
+        # Create expense without tags first
         db_expense = Expense(
             description=expense.description,
             recipient=expense.recipient,
             materials=expense.materials,
             hours=expense.hours,
-            category=expense.category,
             amount=expense.amount,
             date=expense.date,
             user_id=current_user.id
         )
         db.add(db_expense)
+        await db.flush()  # Get expense ID without committing
+
+        # Create tags if provided
+        if expense.tags:
+            for tag_name in expense.tags:
+                if tag_name and tag_name.strip():
+                    db_tag = Tag(
+                        name=tag_name.strip(),
+                        expense_id=db_expense.id
+                    )
+                    db.add(db_tag)
+
         await db.commit()
-        await db.refresh(db_expense)
-        return db_expense
+        expense_id = db_expense.id
+        await db.close()
+
+        # Reload with fresh session to get tags
+        async with AsyncSessionLocal() as fresh_db:
+            result = await fresh_db.execute(
+                select(Expense)
+                .options(joinedload(Expense.tags))
+                .where(Expense.id == expense_id)
+            )
+            created_expense = result.unique().scalar_one()
+            print(f"Created expense {expense_id} with tags: {[tag.name for tag in created_expense.tags]}")
+            return created_expense
     except Exception as e:
         await db.rollback()
+        print(f"Error creating expense: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to create expense: {str(e)}")
 
 @app.get("/api/expenses", response_model=List[ExpenseResponse])
@@ -253,16 +212,22 @@ async def get_expenses(
     limit: int = 20,
     month: Optional[str] = None,
     year: Optional[int] = None,
+    tags: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get expenses for current user with pagination and optional month/year filtering.
+    Get expenses for current user with pagination and filtering.
     month: 1-12 for January-December
     year: 4-digit year
+    tags: comma-separated tag names to filter by (e.g., "food,travel")
     """
     query = select(Expense).filter(Expense.user_id == current_user.id)
 
+    # Add eager loading for tags
+    query = query.options(joinedload(Expense.tags))
+
+    # Month/year filtering
     if year and month:
         from datetime import datetime
         month_int = int(month)
@@ -278,9 +243,16 @@ async def get_expenses(
         end_date = datetime(year + 1, 1, 1)
         query = query.filter(Expense.date >= start_date, Expense.date < end_date)
 
+    # Tag filtering
+    if tags:
+        tag_list = [t.strip() for t in tags.split(',') if t.strip()]
+        if tag_list:
+            # Join with tags table and filter
+            query = query.join(Tag).filter(Tag.name.in_(tag_list))
+
     query = query.order_by(Expense.date.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
-    expenses = result.scalars().all()
+    expenses = result.unique().scalars().all()  # unique() prevents duplicates from joins
     return expenses
 
 @app.get("/api/expenses/{expense_id}", response_model=ExpenseResponse)
@@ -303,31 +275,6 @@ async def get_expense(
         raise HTTPException(status_code=404, detail="Expense not found")
     return expense
 
-@app.patch("/api/expenses/{expense_id}/category", response_model=ExpenseResponse)
-async def update_expense_category(
-    expense_id: int,
-    category: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Update the category of an expense (only if it belongs to current user).
-    """
-    result = await db.execute(
-        select(Expense).filter(
-            Expense.id == expense_id,
-            Expense.user_id == current_user.id
-        )
-    )
-    expense = result.scalar_one_or_none()
-    if expense is None:
-        raise HTTPException(status_code=404, detail="Expense not found")
-
-    expense.category = category if category and category.strip() else None
-    await db.commit()
-    await db.refresh(expense)
-    return expense
-
 @app.patch("/api/expenses/{expense_id}", response_model=ExpenseResponse)
 async def update_expense(
     expense_id: int,
@@ -338,33 +285,93 @@ async def update_expense(
     """
     Update an expense (only if it belongs to current user).
     """
-    result = await db.execute(
-        select(Expense).filter(
-            Expense.id == expense_id,
-            Expense.user_id == current_user.id
+    try:
+        result = await db.execute(
+            select(Expense)
+            .options(joinedload(Expense.tags))
+            .filter(
+                Expense.id == expense_id,
+                Expense.user_id == current_user.id
+            )
         )
-    )
-    expense = result.scalar_one_or_none()
-    if expense is None:
-        raise HTTPException(status_code=404, detail="Expense not found")
+        expense = result.unique().scalar_one_or_none()
+        if expense is None:
+            raise HTTPException(status_code=404, detail="Expense not found")
 
-    # Update allowed fields
-    if "description" in expense_update:
-        expense.description = expense_update["description"]
-    if "recipient" in expense_update:
-        expense.recipient = expense_update["recipient"] if expense_update["recipient"] else None
-    if "materials" in expense_update:
-        expense.materials = expense_update["materials"] if expense_update["materials"] else None
-    if "hours" in expense_update:
-        expense.hours = float(expense_update["hours"]) if expense_update["hours"] else None
-    if "category" in expense_update:
-        expense.category = expense_update["category"] if expense_update["category"] else None
-    if "amount" in expense_update:
-        expense.amount = float(expense_update["amount"])
+        print(f"Updating expense {expense_id} with data: {expense_update}")
 
-    await db.commit()
-    await db.refresh(expense)
-    return expense
+        # Update allowed fields
+        if "description" in expense_update:
+            expense.description = expense_update["description"]
+        if "recipient" in expense_update:
+            expense.recipient = expense_update["recipient"] if expense_update["recipient"] else None
+        if "materials" in expense_update:
+            expense.materials = expense_update["materials"] if expense_update["materials"] else None
+        if "hours" in expense_update:
+            expense.hours = float(expense_update["hours"]) if expense_update["hours"] else None
+        if "amount" in expense_update:
+            expense.amount = float(expense_update["amount"])
+        if "date" in expense_update:
+            # Parse date string to datetime object
+            date_str = expense_update["date"]
+            if isinstance(date_str, str):
+                # Try parsing ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+                try:
+                    expense.date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                except ValueError:
+                    # If parsing fails, try just the date portion
+                    expense.date = datetime.strptime(date_str.split('T')[0], '%Y-%m-%d')
+            elif isinstance(date_str, datetime):
+                expense.date = date_str
+
+        # Handle tags update
+        if "tags" in expense_update:
+            print(f"Updating tags to: {expense_update['tags']}")
+            # Delete existing tags
+            await db.execute(
+                delete(Tag).where(Tag.expense_id == expense_id)
+            )
+            await db.flush()
+
+            # Add new tags
+            tags = expense_update["tags"]
+            if isinstance(tags, list):
+                for tag_name in tags:
+                    if tag_name and tag_name.strip():
+                        db_tag = Tag(
+                            name=tag_name.strip(),
+                            expense_id=expense_id
+                        )
+                        db.add(db_tag)
+
+        await db.commit()
+
+        # Close the session to clear any cached data
+        await db.close()
+
+        # Create a new session and query for the expense with fresh tags
+        async with AsyncSessionLocal() as fresh_db:
+            result = await fresh_db.execute(
+                select(Expense)
+                .options(joinedload(Expense.tags))
+                .where(Expense.id == expense_id)
+            )
+            reloaded_expense = result.unique().scalar_one()
+
+            # Debug: print tags before returning
+            print(f"Successfully updated expense {expense_id}")
+            print(f"Reloaded expense tags objects: {reloaded_expense.tags}")
+            print(f"Reloaded expense tags names: {[tag.name for tag in reloaded_expense.tags]}")
+
+            return reloaded_expense
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        print(f"Error updating expense {expense_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to update expense: {str(e)}")
 
 @app.delete("/api/expenses/{expense_id}", status_code=204)
 async def delete_expense(
@@ -422,27 +429,26 @@ async def transcribe_text(
 ):
     """
     Process voice transcription and extract expense information using Claude.
-    Includes user's categories as context for better parsing.
+    Includes user's existing tags as context for better parsing.
     """
     if not transcription or not transcription.strip():
         raise HTTPException(status_code=400, detail="Transcription text is required")
 
     try:
-        # Get unique categories from existing expenses (excluding None/empty)
+        # Get unique tag names from existing expenses
         result = await db.execute(
-            select(Expense.category).filter(
-                Expense.user_id == current_user.id,
-                Expense.category.isnot(None),
-                Expense.category != ''
-            ).distinct()
+            select(Tag.name)
+            .join(Expense)
+            .filter(Expense.user_id == current_user.id)
+            .distinct()
         )
-        expense_categories = result.all()
-        category_names = [cat[0] for cat in expense_categories if cat[0]]
+        existing_tags = result.scalars().all()
+        tag_names = list(existing_tags) if existing_tags else []
 
         # Get user's custom expense context
         user_context = current_user.expense_context
 
-        parsed_expense, warning = claude_service.parse_expense_from_text(transcription, category_names, user_context)
+        parsed_expense, warning = claude_service.parse_expense_from_text(transcription, tag_names, user_context)
 
         return VoiceTranscriptionResponse(
             transcription=transcription,
