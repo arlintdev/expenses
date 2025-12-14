@@ -12,11 +12,15 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
   const [error, setError] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [useSpeechRecognition, setUseSpeechRecognition] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0, successes: 0, failures: 0 });
+  const [processedFiles, setProcessedFiles] = useState([]);
   const recognitionRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const finalTranscriptRef = useRef('');
   const fileInputRef = useRef(null);
+  const bulkFileInputRef = useRef(null);
 
   // Reset when modal closes
   useEffect(() => {
@@ -36,6 +40,11 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
       // Trigger file picker
       setTimeout(() => {
         fileInputRef.current?.click();
+      }, 100);
+    } else if (mode === 'bulk' && selectedFiles.length === 0 && !isProcessing) {
+      // Trigger bulk file picker
+      setTimeout(() => {
+        bulkFileInputRef.current?.click();
       }, 100);
     }
   }, [mode]);
@@ -85,6 +94,9 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
     setImagePreview(null);
     setError(null);
     finalTranscriptRef.current = '';
+    setSelectedFiles([]);
+    setBulkProgress({ current: 0, total: 0, successes: 0, failures: 0 });
+    setProcessedFiles([]);
   };
 
   // ==================== VOICE RECORDING ====================
@@ -433,6 +445,96 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
     }
   };
 
+  // ==================== BULK UPLOAD ====================
+
+  const handleBulkFileSelect = async (event) => {
+    const files = Array.from(event.target.files || []);
+
+    // Filter and validate
+    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    const validFiles = imageFiles.filter(file => file.size <= 10 * 1024 * 1024);
+
+    if (validFiles.length === 0) {
+      setError('No valid images selected. Please select image files under 10MB each.');
+      return;
+    }
+
+    if (validFiles.length < files.length) {
+      setError(`${files.length - validFiles.length} files skipped (not images or too large)`);
+    } else {
+      setError(null);
+    }
+
+    setSelectedFiles(validFiles);
+    await processBulkUpload(validFiles);
+  };
+
+  const processBulkUpload = async (files) => {
+    setIsProcessing(true);
+    setBulkProgress({ current: 0, total: files.length, successes: 0, failures: 0 });
+    setProcessedFiles([]);
+
+    const results = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setBulkProgress(prev => ({ ...prev, current: i + 1 }));
+
+      try {
+        // Process single image
+        const formData = new FormData();
+        formData.append('image', file, file.name);
+
+        const response = await fetch(`${apiUrl}/api/process-image`, {
+          method: 'POST',
+          headers: getAuthHeader(),
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to process image');
+        }
+
+        const data = await response.json();
+
+        if (data.parsed_expense) {
+          // Create expense
+          const expenseResponse = await fetch(`${apiUrl}/api/expenses`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...getAuthHeader(),
+            },
+            body: JSON.stringify(data.parsed_expense),
+          });
+
+          if (expenseResponse.ok) {
+            const newExpense = await expenseResponse.json();
+            results.push({ file: file.name, success: true, expense: newExpense });
+            setBulkProgress(prev => ({ ...prev, successes: prev.successes + 1 }));
+          } else {
+            throw new Error('Failed to create expense');
+          }
+        } else {
+          throw new Error('No expense data extracted');
+        }
+      } catch (error) {
+        console.error(`Failed to process ${file.name}:`, error);
+        results.push({ file: file.name, success: false, error: error.message });
+        setBulkProgress(prev => ({ ...prev, failures: prev.failures + 1 }));
+      }
+
+      setProcessedFiles([...results]);
+    }
+
+    setIsProcessing(false);
+
+    // Notify parent to refresh expense list
+    if (results.some(r => r.success)) {
+      onExpenseAdded();
+    }
+  };
+
   // ==================== COMMON ====================
 
   const createExpense = async (expenseData) => {
@@ -521,6 +623,17 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
               </svg>
               <span>Photo</span>
               <p className="mode-description">Upload receipt</p>
+            </button>
+
+            <button onClick={() => setMode('bulk')} className="mode-button mode-button-wide">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <path d="M12 18v-6"></path>
+                <path d="M9 15l3 3 3-3"></path>
+              </svg>
+              <span>Bulk Upload</span>
+              <p className="mode-description">Multiple receipts</p>
             </button>
           </div>
 
@@ -730,6 +843,98 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
 
           <div className="modal-hint">
             Select a photo, drag & drop, or paste from clipboard
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== BULK UPLOAD MODE ====================
+
+  if (mode === 'bulk') {
+    return (
+      <div className="modal-overlay" onClick={(e) => { if (!isProcessing) onClose(); }}>
+        <div className="modal-content bulk-upload" onClick={(e) => e.stopPropagation()}>
+          <button className="modal-close" onClick={onClose}>&times;</button>
+          <button className="modal-back" onClick={handleBack}>← Back</button>
+
+          <h2>Bulk Upload</h2>
+          <p className="modal-subtitle">Upload multiple receipts at once</p>
+
+          <div className="bulk-upload-section">
+            {selectedFiles.length === 0 ? (
+              <div className="bulk-empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <p>No files selected</p>
+                <button onClick={() => bulkFileInputRef.current?.click()}>
+                  Choose Images
+                </button>
+              </div>
+            ) : (
+              <div className="bulk-processing">
+                <div className="bulk-stats">
+                  <p>Processing {bulkProgress.current} of {bulkProgress.total}</p>
+                  <div className="stats-row">
+                    <span className="success">✓ {bulkProgress.successes} created</span>
+                    {bulkProgress.failures > 0 && (
+                      <span className="failure">✗ {bulkProgress.failures} failed</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="progress-bar">
+                  <div
+                    className="progress-fill"
+                    style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
+                  ></div>
+                </div>
+
+                <div className="file-list">
+                  {processedFiles.map((result, idx) => (
+                    <div key={idx} className={`file-item ${result.success ? 'success' : 'failure'}`}>
+                      <span className="file-name">{result.file}</span>
+                      <span className="file-status">
+                        {result.success ? '✓' : '✗'}
+                      </span>
+                    </div>
+                  ))}
+                  {selectedFiles.slice(processedFiles.length).map((file, idx) => (
+                    <div key={idx + processedFiles.length} className="file-item pending">
+                      <span className="file-name">{file.name}</span>
+                      <span className="file-status">...</span>
+                    </div>
+                  ))}
+                </div>
+
+                {!isProcessing && (
+                  <div className="bulk-actions">
+                    <button onClick={() => { setSelectedFiles([]); setProcessedFiles([]); bulkFileInputRef.current?.click(); }}>
+                      Upload More
+                    </button>
+                    <button onClick={onClose} className="done-button">
+                      Done
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <input
+              ref={bulkFileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleBulkFileSelect}
+              style={{ display: 'none' }}
+            />
+          </div>
+
+          <div className="modal-hint">
+            Select multiple images to process them all at once
           </div>
         </div>
       </div>
