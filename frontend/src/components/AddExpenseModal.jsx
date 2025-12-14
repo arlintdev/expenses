@@ -319,9 +319,9 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
         return;
       }
 
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        setError('Image too large. Please use an image under 10MB');
+      // Validate file size (max 15MB)
+      if (file.size > 15 * 1024 * 1024) {
+        setError('Image too large. Please use an image under 15MB');
         return;
       }
 
@@ -394,9 +394,9 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
       return;
     }
 
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Image too large. Please select an image under 10MB');
+    // Validate file size (max 15MB)
+    if (file.size > 15 * 1024 * 1024) {
+      setError('Image too large. Please select an image under 15MB');
       return;
     }
 
@@ -452,10 +452,10 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
 
     // Filter and validate
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
-    const validFiles = imageFiles.filter(file => file.size <= 10 * 1024 * 1024);
+    const validFiles = imageFiles.filter(file => file.size <= 15 * 1024 * 1024);
 
     if (validFiles.length === 0) {
-      setError('No valid images selected. Please select image files under 10MB each.');
+      setError('No valid images selected. Please select image files under 15MB each.');
       return;
     }
 
