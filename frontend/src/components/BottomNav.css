@@ -52,7 +52,7 @@
   transform: scale(1.1);
 }
 
-.mic-button {
+.add-button {
   width: 64px;
   height: 64px;
   border-radius: 50%;
@@ -68,17 +68,17 @@
   color: white;
 }
 
-.mic-button svg {
+.add-button svg {
   width: 32px;
   height: 32px;
 }
 
-.mic-button:hover {
+.add-button:hover {
   transform: translateY(-4px);
   box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
 }
 
-.mic-button:active {
+.add-button:active {
   transform: translateY(-2px);
 }
 

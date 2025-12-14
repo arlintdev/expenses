@@ -601,6 +601,56 @@ async def transcribe_audio_file(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to transcribe audio: {str(e)}")
 
+@app.post("/api/process-image", response_model=VoiceTranscriptionResponse)
+async def process_image(
+    image: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Process uploaded image (receipt, screenshot) and extract expense information using Claude Vision.
+    """
+    try:
+        # Read and encode image
+        image_content = await image.read()
+        image_base64 = base64.b64encode(image_content).decode('utf-8')
+        media_type = image.content_type or 'image/jpeg'
+
+        print(f"Processing image with type: {media_type}, size: {len(image_content)} bytes")
+
+        # Get user's existing tags for context
+        result = await db.execute(
+            select(Tag.name)
+            .join(Expense)
+            .filter(Expense.user_id == current_user.id)
+            .distinct()
+        )
+        existing_tags = result.scalars().all()
+        tag_names = list(existing_tags) if existing_tags else []
+
+        # Get user's custom expense context
+        user_context = current_user.expense_context
+
+        # Extract expense data from image
+        parsed_expense, warning = claude_service.extract_expense_from_image(
+            image_base64, media_type, tag_names, user_context
+        )
+
+        print(f"Extracted expense data: {parsed_expense}")
+
+        return VoiceTranscriptionResponse(
+            transcription="[Image processed]",
+            parsed_expense=ExpenseCreate(**parsed_expense),
+            warning=warning
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        print(f"Error processing image: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to process image: {str(e)}")
+
 @app.post("/api/transcribe", response_model=VoiceTranscriptionResponse)
 async def transcribe_text(
     transcription: str,

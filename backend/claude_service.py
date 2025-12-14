@@ -184,3 +184,136 @@ If any information is missing or unclear, make reasonable assumptions based on c
 
         except Exception as e:
             raise ValueError(f"Error transcribing audio with Claude: {str(e)}")
+
+    def extract_expense_from_image(self, image_base64: str, media_type: str, available_tags: list = None, user_context: str = None) -> tuple[Dict[str, Any], Optional[str]]:
+        """
+        Extract expense information from image using Claude Vision API.
+
+        Args:
+            image_base64: Base64 encoded image data
+            media_type: MIME type (image/jpeg, image/png, etc.)
+            available_tags: User's existing tags for context
+            user_context: Custom expense context
+
+        Returns:
+            Tuple of (parsed_data, warning_message)
+        """
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        # Build tag context
+        tag_context = ""
+        if available_tags and len(available_tags) > 0:
+            tag_list = ", ".join(available_tags)
+            tag_context = f"\n\nThe user has the following tags available: {tag_list}\nIf the expense seems to fit one or more of these tags, use them. You can also suggest new tags or leave it empty."
+
+        # Build user context
+        context_instruction = ""
+        if user_context and user_context.strip():
+            context_instruction = f"\n\nIMPORTANT USER CONTEXT:\n{user_context}\n\nPlease follow these instructions when parsing and formatting the expense."
+
+        prompt = f"""Extract expense information from this image (receipt, invoice, screenshot, handwritten note, etc.):
+
+1. description: What the expense is for (title/description)
+2. recipient: Who/where the expense is for (merchant, vendor, person, business name)
+3. materials: Any materials/items listed (optional - use null if not specified)
+4. hours: Any hours mentioned (optional - use null if not specified)
+5. tags: An array of relevant tags/categories (optional - use empty array if not specified){tag_context}
+6. amount: The total amount (required - extract the final total)
+7. date: The date in YYYY-MM-DD format (if not visible, use today's date: {today}){context_instruction}
+
+Respond ONLY with a JSON object in this exact format:
+{{
+    "description": "description here",
+    "recipient": "recipient here",
+    "materials": "materials_or_null",
+    "hours": numeric_hours_or_null,
+    "tags": ["tag1", "tag2"],
+    "amount": numeric_amount,
+    "date": "YYYY-MM-DD"
+}}
+
+If any information is missing or unclear, make reasonable assumptions based on context. The materials, hours, and tags fields are optional - only include them if explicitly mentioned in the image. Tags should be an array of strings (e.g., ["food", "travel"])."""
+
+        try:
+            message = self.client.messages.create(
+                model=self.model,
+                max_tokens=1000,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": media_type,
+                                    "data": image_base64
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": prompt
+                            }
+                        ]
+                    }
+                ]
+            )
+
+            response_text = message.content[0].text.strip()
+
+            # Check token usage
+            input_tokens = message.usage.input_tokens
+            output_tokens = message.usage.output_tokens
+
+            warning_message = None
+            if input_tokens > 1000 or output_tokens > 1000:
+                warning_message = f"Token limit exceeded: Input={input_tokens}/1000, Output={output_tokens}/1000"
+                print(f"⚠️  {warning_message}")
+
+            # Extract JSON from response (handle markdown code blocks)
+            if response_text.startswith("```"):
+                lines = response_text.split("\n")
+                json_lines = [line for line in lines if not line.startswith("```")]
+                response_text = "\n".join(json_lines).strip()
+
+            parsed_data = json.loads(response_text)
+
+            # Validate required fields
+            required_fields = ["description", "recipient", "amount", "date"]
+            for field in required_fields:
+                if field not in parsed_data:
+                    raise ValueError(f"Missing required field: {field}")
+
+            # Convert amount to float
+            parsed_data["amount"] = float(parsed_data["amount"])
+
+            # Handle materials (optional string field)
+            if "materials" not in parsed_data or parsed_data["materials"] is None:
+                parsed_data["materials"] = None
+
+            # Convert hours to float if present and not null
+            if "hours" in parsed_data and parsed_data["hours"] is not None:
+                parsed_data["hours"] = float(parsed_data["hours"])
+            else:
+                parsed_data["hours"] = None
+
+            # Handle tags (optional array field)
+            if "tags" not in parsed_data or not isinstance(parsed_data["tags"], list):
+                parsed_data["tags"] = []
+            else:
+                # Clean and deduplicate tags
+                parsed_data["tags"] = [
+                    tag.strip() for tag in parsed_data["tags"]
+                    if tag and isinstance(tag, str) and tag.strip()
+                ]
+                parsed_data["tags"] = list(dict.fromkeys(parsed_data["tags"]))  # Remove duplicates
+
+            # Parse date string to datetime
+            parsed_data["date"] = datetime.strptime(parsed_data["date"], "%Y-%m-%d")
+
+            return parsed_data, warning_message
+
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse Claude response as JSON: {str(e)}")
+        except Exception as e:
+            raise ValueError(f"Error processing image with Claude: {str(e)}")
