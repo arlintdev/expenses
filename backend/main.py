@@ -57,6 +57,15 @@ print("="*60 + "\n")
 def health_check():
     return {"status": "healthy"}
 
+@app.get("/api/config")
+def get_config():
+    """
+    Get public configuration for the frontend.
+    """
+    return {
+        "googleClientId": os.getenv("GOOGLE_CLIENT_ID", "")
+    }
+
 # Authentication endpoints
 @app.post("/api/auth/google", response_model=AuthResponse)
 async def google_auth(auth_request: GoogleAuthRequest, db: Session = Depends(get_db)):
