@@ -83,13 +83,21 @@
   padding: 1rem;
   margin-bottom: 1rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s ease;
+}
+
+.expense-card.editing {
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  border: 2px solid #667eea;
 }
 
 .expense-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .expense-date {
@@ -104,50 +112,110 @@
   color: #667eea;
 }
 
-.expense-description {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #1a1a1a;
+.amount-input {
+  width: 120px;
+  padding: 4px 8px;
+  border: 2px solid #667eea;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #667eea;
+  text-align: right;
+}
+
+.expense-field {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   margin-bottom: 0.75rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+  transition: background 0.2s ease;
 }
 
-.expense-details {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+.expense-field:hover {
+  background: #f9f9f9;
 }
 
-.detail-row {
-  display: flex;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-}
-
-.detail-label {
-  font-weight: 600;
-  color: #666;
-  min-width: 80px;
-}
-
-.loading-more {
+.field-icon {
+  font-size: 1.25rem;
+  min-width: 28px;
   text-align: center;
-  padding: 1rem;
-  color: #666;
-  font-size: 0.9rem;
 }
 
+.field-value {
+  flex: 1;
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.field-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 2px solid #667eea;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.field-input:focus {
+  border-color: #764ba2;
+}
+
+.expense-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f0f0f0;
+}
+
+.edit-button,
+.save-button,
+.cancel-button,
 .delete-button {
-  width: 100%;
+  flex: 1;
   padding: 0.65rem;
-  background-color: #fee;
-  color: #c00;
-  border: 1px solid #fcc;
+  border: none;
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.9rem;
   font-weight: 600;
   transition: all 0.2s ease;
+}
+
+.edit-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.edit-button:hover {
+  opacity: 0.9;
+}
+
+.save-button {
+  background: #4caf50;
+  color: white;
+}
+
+.save-button:hover {
+  background: #45a049;
+}
+
+.cancel-button {
+  background: #ff9800;
+  color: white;
+}
+
+.cancel-button:hover {
+  background: #f57c00;
+}
+
+.delete-button {
+  background-color: #fee;
+  color: #c00;
+  border: 1px solid #fcc;
 }
 
 .delete-button:hover:not(:disabled) {
@@ -164,78 +232,11 @@
   cursor: not-allowed;
 }
 
-.category-row {
-  align-items: center;
-}
-
-.category-value {
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
-  transition: background 0.2s;
-  flex: 1;
-}
-
-.category-value:hover {
-  background: #f0f0f0;
-}
-
-.category-placeholder {
-  color: #999;
-  font-style: italic;
-}
-
-.category-edit {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex: 1;
-}
-
-.category-input {
-  flex: 1;
-  padding: 6px 10px;
-  border: 2px solid #667eea;
-  border-radius: 6px;
+.loading-more {
+  text-align: center;
+  padding: 1rem;
+  color: #666;
   font-size: 0.9rem;
-  outline: none;
-}
-
-.category-input:focus {
-  border-color: #764ba2;
-}
-
-.save-btn,
-.cancel-btn {
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 16px;
-  font-weight: bold;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.save-btn {
-  background: #4caf50;
-  color: white;
-}
-
-.save-btn:hover {
-  background: #45a049;
-}
-
-.cancel-btn {
-  background: #f44336;
-  color: white;
-}
-
-.cancel-btn:hover {
-  background: #da190b;
 }
 
 @media (min-width: 768px) {

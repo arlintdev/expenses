@@ -11,8 +11,8 @@ function ExpenseList({ apiUrl, onDelete }) {
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [deletingId, setDeletingId] = useState(null);
-  const [editingCategoryId, setEditingCategoryId] = useState(null);
-  const [editCategoryValue, setEditCategoryValue] = useState('');
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
+  const [editFormData, setEditFormData] = useState({});
   const [availableCategories, setAvailableCategories] = useState([]);
   const observer = useRef();
   const lastExpenseRef = useCallback(node => {
@@ -87,34 +87,45 @@ function ExpenseList({ apiUrl, onDelete }) {
     setDeletingId(null);
   };
 
-  const startEditingCategory = (expense) => {
-    setEditingCategoryId(expense.id);
-    setEditCategoryValue(expense.category || '');
+  const startEditing = (expense) => {
+    setEditingExpenseId(expense.id);
+    setEditFormData({
+      description: expense.description || '',
+      recipient: expense.recipient || '',
+      materials: expense.materials || '',
+      hours: expense.hours || '',
+      category: expense.category || '',
+      amount: expense.amount || ''
+    });
   };
 
-  const cancelEditingCategory = () => {
-    setEditingCategoryId(null);
-    setEditCategoryValue('');
+  const cancelEditing = () => {
+    setEditingExpenseId(null);
+    setEditFormData({});
   };
 
-  const saveCategory = async (expenseId) => {
+  const saveExpense = async (expenseId) => {
     try {
-      const response = await fetch(`${apiUrl}/api/expenses/${expenseId}/category?category=${encodeURIComponent(editCategoryValue)}`, {
+      const response = await fetch(`${apiUrl}/api/expenses/${expenseId}`, {
         method: 'PATCH',
-        headers: getAuthHeader(),
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify(editFormData),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update category');
+        throw new Error('Failed to update expense');
       }
 
       const updatedExpense = await response.json();
       setExpenses(expenses.map(e => e.id === expenseId ? updatedExpense : e));
-      setEditingCategoryId(null);
-      setEditCategoryValue('');
+      setEditingExpenseId(null);
+      setEditFormData({});
     } catch (error) {
-      console.error('Error updating category:', error);
-      alert('Failed to update category');
+      console.error('Error updating expense:', error);
+      alert('Failed to update expense');
     }
   };
 
@@ -231,73 +242,147 @@ function ExpenseList({ apiUrl, onDelete }) {
         <div className="expenses-scroll">
           {expenses.map((expense, index) => {
             const isLast = index === expenses.length - 1;
+            const isEditing = editingExpenseId === expense.id;
+
             return (
               <div
                 key={expense.id}
                 ref={isLast ? lastExpenseRef : null}
-                className="expense-card"
+                className={`expense-card ${isEditing ? 'editing' : ''}`}
               >
                 <div className="expense-header">
                   <div className="expense-date">{formatDate(expense.date)}</div>
-                  <div className="expense-amount">{formatAmount(expense.amount)}</div>
-                </div>
-                <div className="expense-description">{expense.description}</div>
-                <div className="expense-details">
-                  <div className="detail-row">
-                    <span className="detail-label">For:</span>
-                    <span>{expense.recipient}</span>
-                  </div>
-                  {expense.materials && (
-                    <div className="detail-row">
-                      <span className="detail-label">Materials:</span>
-                      <span>{expense.materials}</span>
-                    </div>
-                  )}
-                  {expense.hours && (
-                    <div className="detail-row">
-                      <span className="detail-label">Hours:</span>
-                      <span>{expense.hours.toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div className="detail-row category-row">
-                    <span className="detail-label">Category:</span>
-                    {editingCategoryId === expense.id ? (
-                      <div className="category-edit">
-                        <input
-                          type="text"
-                          value={editCategoryValue}
-                          onChange={(e) => setEditCategoryValue(e.target.value)}
-                          list={`categories-${expense.id}`}
-                          placeholder="Enter category"
-                          className="category-input"
-                          autoFocus
-                        />
-                        <datalist id={`categories-${expense.id}`}>
-                          {availableCategories.map((cat, idx) => (
-                            <option key={idx} value={cat} />
-                          ))}
-                        </datalist>
-                        <button onClick={() => saveCategory(expense.id)} className="save-btn">
-                          ✓
-                        </button>
-                        <button onClick={cancelEditingCategory} className="cancel-btn">
-                          ✕
-                        </button>
-                      </div>
+                  <div className="expense-amount">
+                    {isEditing ? (
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editFormData.amount}
+                        onChange={(e) => setEditFormData({...editFormData, amount: parseFloat(e.target.value) || 0})}
+                        className="amount-input"
+                      />
                     ) : (
-                      <span className="category-value" onClick={() => startEditingCategory(expense)}>
-                        {expense.category || <span className="category-placeholder">Click to add</span>}
-                      </span>
+                      formatAmount(expense.amount)
                     )}
                   </div>
                 </div>
-                <button
-                  className="delete-button"
-                  onClick={() => handleDelete(expense.id)}
-                  disabled={deletingId === expense.id}
-                >
-                  {deletingId === expense.id ? 'Deleting...' : 'Delete'}
-                </button>
+
+                {/* Title/Description */}
+                <div className="expense-field">
+                  <span className="field-icon" title="Title/Description">📝</span>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editFormData.description}
+                      onChange={(e) => setEditFormData({...editFormData, description: e.target.value})}
+                      className="field-input"
+                      placeholder="Description"
+                    />
+                  ) : (
+                    <span className="field-value">{expense.description || '—'}</span>
+                  )}
+                </div>
+
+                {/* Who it's for */}
+                <div className="expense-field">
+                  <span className="field-icon" title="Who it's for">👤</span>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editFormData.recipient}
+                      onChange={(e) => setEditFormData({...editFormData, recipient: e.target.value})}
+                      className="field-input"
+                      placeholder="Recipient"
+                    />
+                  ) : (
+                    <span className="field-value">{expense.recipient || '—'}</span>
+                  )}
+                </div>
+
+                {/* Materials */}
+                <div className="expense-field">
+                  <span className="field-icon" title="Materials">🔧</span>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editFormData.materials}
+                      onChange={(e) => setEditFormData({...editFormData, materials: e.target.value})}
+                      className="field-input"
+                      placeholder="Materials"
+                    />
+                  ) : (
+                    <span className="field-value">{expense.materials || '—'}</span>
+                  )}
+                </div>
+
+                {/* Hours */}
+                <div className="expense-field">
+                  <span className="field-icon" title="Hours">⏱️</span>
+                  {isEditing ? (
+                    <input
+                      type="number"
+                      step="0.25"
+                      value={editFormData.hours}
+                      onChange={(e) => setEditFormData({...editFormData, hours: parseFloat(e.target.value) || ''})}
+                      className="field-input"
+                      placeholder="Hours"
+                    />
+                  ) : (
+                    <span className="field-value">
+                      {expense.hours ? expense.hours.toFixed(2) : '—'}
+                    </span>
+                  )}
+                </div>
+
+                {/* Category */}
+                <div className="expense-field">
+                  <span className="field-icon" title="Category">🏷️</span>
+                  {isEditing ? (
+                    <>
+                      <input
+                        type="text"
+                        value={editFormData.category}
+                        onChange={(e) => setEditFormData({...editFormData, category: e.target.value})}
+                        list={`categories-${expense.id}`}
+                        className="field-input"
+                        placeholder="Category"
+                      />
+                      <datalist id={`categories-${expense.id}`}>
+                        {availableCategories.map((cat, idx) => (
+                          <option key={idx} value={cat} />
+                        ))}
+                      </datalist>
+                    </>
+                  ) : (
+                    <span className="field-value">{expense.category || '—'}</span>
+                  )}
+                </div>
+
+                <div className="expense-actions">
+                  {isEditing ? (
+                    <>
+                      <button onClick={() => saveExpense(expense.id)} className="save-button">
+                        Save
+                      </button>
+                      <button onClick={cancelEditing} className="cancel-button">
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={() => startEditing(expense)} className="edit-button">
+                        Edit
+                      </button>
+                      <button
+                        className="delete-button"
+                        onClick={() => handleDelete(expense.id)}
+                        disabled={deletingId === expense.id}
+                      >
+                        {deletingId === expense.id ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             );
           })}

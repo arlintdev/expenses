@@ -268,6 +268,41 @@ def update_expense_category(
     db.refresh(expense)
     return expense
 
+@app.patch("/api/expenses/{expense_id}", response_model=ExpenseResponse)
+def update_expense(
+    expense_id: int,
+    expense_update: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update an expense (only if it belongs to current user).
+    """
+    expense = db.query(Expense).filter(
+        Expense.id == expense_id,
+        Expense.user_id == current_user.id
+    ).first()
+    if expense is None:
+        raise HTTPException(status_code=404, detail="Expense not found")
+
+    # Update allowed fields
+    if "description" in expense_update:
+        expense.description = expense_update["description"]
+    if "recipient" in expense_update:
+        expense.recipient = expense_update["recipient"] if expense_update["recipient"] else None
+    if "materials" in expense_update:
+        expense.materials = expense_update["materials"] if expense_update["materials"] else None
+    if "hours" in expense_update:
+        expense.hours = float(expense_update["hours"]) if expense_update["hours"] else None
+    if "category" in expense_update:
+        expense.category = expense_update["category"] if expense_update["category"] else None
+    if "amount" in expense_update:
+        expense.amount = float(expense_update["amount"])
+
+    db.commit()
+    db.refresh(expense)
+    return expense
+
 @app.delete("/api/expenses/{expense_id}", status_code=204)
 def delete_expense(
     expense_id: int,

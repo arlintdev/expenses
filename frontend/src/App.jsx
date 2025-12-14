@@ -55,7 +55,7 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Expense Tracker</h1>
+        <h1>Expenses</h1>
         <div className="user-menu">
           {user.picture && <img src={user.picture} alt={user.name} className="user-avatar" />}
           <button onClick={logout} className="logout-button">Logout</button>
