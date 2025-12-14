@@ -18,6 +18,7 @@ function ExpenseList({ apiUrl, onDelete }) {
   const [availableCategories, setAvailableCategories] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const observer = useRef();
+  const scrollContainerRef = useRef();
   const lastExpenseRef = useCallback(node => {
     if (loading) return;
     if (observer.current) observer.current.disconnect();
@@ -257,7 +258,156 @@ function ExpenseList({ apiUrl, onDelete }) {
         </div>
       ) : (
         <PullToRefresh onRefresh={handleRefresh} className="pull-to-refresh-wrapper">
-          <div className="expenses-scroll">
+          <div className="expenses-scroll" ref={scrollContainerRef}>
+          {/* Desktop Table View */}
+          <div className="expenses-table-wrapper">
+            <table className="expenses-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Description</th>
+                  <th>Recipient</th>
+                  <th>Materials</th>
+                  <th>Hours</th>
+                  <th>Category</th>
+                  <th>Amount</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expenses.map((expense, index) => {
+                  const isLast = index === expenses.length - 1;
+                  const isEditing = editingExpenseId === expense.id;
+
+                  return (
+                    <tr
+                      key={expense.id}
+                      ref={isLast ? lastExpenseRef : null}
+                      className={isEditing ? 'editing' : ''}
+                    >
+                      <td className="table-date">{formatDate(expense.date)}</td>
+                      <td>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editFormData.description}
+                            onChange={(e) => setEditFormData({...editFormData, description: e.target.value})}
+                            className="table-input"
+                            placeholder="Description"
+                          />
+                        ) : (
+                          expense.description || '—'
+                        )}
+                      </td>
+                      <td>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editFormData.recipient}
+                            onChange={(e) => setEditFormData({...editFormData, recipient: e.target.value})}
+                            className="table-input"
+                            placeholder="Recipient"
+                          />
+                        ) : (
+                          expense.recipient || '—'
+                        )}
+                      </td>
+                      <td>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editFormData.materials}
+                            onChange={(e) => setEditFormData({...editFormData, materials: e.target.value})}
+                            className="table-input"
+                            placeholder="Materials"
+                          />
+                        ) : (
+                          expense.materials || '—'
+                        )}
+                      </td>
+                      <td>
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="0.25"
+                            value={editFormData.hours}
+                            onChange={(e) => setEditFormData({...editFormData, hours: parseFloat(e.target.value) || ''})}
+                            className="table-input"
+                            placeholder="Hours"
+                          />
+                        ) : (
+                          expense.hours ? expense.hours.toFixed(2) : '—'
+                        )}
+                      </td>
+                      <td>
+                        {isEditing ? (
+                          <>
+                            <input
+                              type="text"
+                              value={editFormData.category}
+                              onChange={(e) => setEditFormData({...editFormData, category: e.target.value})}
+                              list={`categories-table-${expense.id}`}
+                              className="table-input"
+                              placeholder="Category"
+                            />
+                            <datalist id={`categories-table-${expense.id}`}>
+                              {availableCategories.map((cat, idx) => (
+                                <option key={idx} value={cat} />
+                              ))}
+                            </datalist>
+                          </>
+                        ) : (
+                          expense.category || '—'
+                        )}
+                      </td>
+                      <td className="table-amount">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={editFormData.amount}
+                            onChange={(e) => setEditFormData({...editFormData, amount: parseFloat(e.target.value) || 0})}
+                            className="table-amount-input"
+                          />
+                        ) : (
+                          formatAmount(expense.amount)
+                        )}
+                      </td>
+                      <td>
+                        <div className="table-actions">
+                          {isEditing ? (
+                            <>
+                              <button onClick={() => saveExpense(expense.id)} className="save-button">
+                                Save
+                              </button>
+                              <button onClick={cancelEditing} className="cancel-button">
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button onClick={() => startEditing(expense)} className="edit-button">
+                                Edit
+                              </button>
+                              <button
+                                className="delete-button"
+                                onClick={() => handleDelete(expense.id)}
+                                disabled={deletingId === expense.id}
+                              >
+                                {deletingId === expense.id ? 'Deleting...' : 'Delete'}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Card View */}
           {expenses.map((expense, index) => {
             const isLast = index === expenses.length - 1;
             const isEditing = editingExpenseId === expense.id;
