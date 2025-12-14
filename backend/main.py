@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
@@ -323,6 +325,22 @@ async def transcribe_text(
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to process transcription: {str(e)}")
+
+# Mount static files for serving frontend (Docker deployment)
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """Serve the React SPA for all non-API routes"""
+        # Serve index.html for all routes except /api
+        if not full_path.startswith("api"):
+            index_file = static_dir / "index.html"
+            if index_file.exists():
+                return FileResponse(index_file)
+        # If it's an API route that doesn't exist, let FastAPI handle 404
+        raise HTTPException(status_code=404, detail="Not found")
 
 if __name__ == "__main__":
     import uvicorn
