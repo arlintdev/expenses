@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { MdDescription, MdPerson, MdBuild, MdAccessTime, MdLocalOffer } from 'react-icons/md';
 import TagInput from './TagInput';
+import DeleteConfirmation from './DeleteConfirmation';
 import './ExpenseList.css';
 
 function ExpenseList({
@@ -11,7 +12,8 @@ function ExpenseList({
   initialMonth = 'all',
   initialYear = new Date().getFullYear(),
   initialTags = [],
-  initialSearch = ''
+  initialSearch = '',
+  refreshTrigger = 0
 }) {
   const { getAuthHeader } = useAuth();
   const navigate = useNavigate();
@@ -29,6 +31,7 @@ function ExpenseList({
   const [openMenuId, setOpenMenuId] = useState(null);
   const [sortBy, setSortBy] = useState('date_desc'); // date_desc, date_asc, created_desc, created_asc
   const [showFiltersModal, setShowFiltersModal] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState(null); // { id, description, amount }
   const observer = useRef();
   const scrollContainerRef = useRef();
   const lastExpenseRef = useCallback(node => {
@@ -51,6 +54,16 @@ function ExpenseList({
   useEffect(() => {
     fetchExpenses();
   }, [page, selectedMonth, selectedYear]);
+
+  // Refresh when refreshTrigger changes
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      setExpenses([]);
+      setPage(0);
+      setHasMore(true);
+      fetchExpenses();
+    }
+  }, [refreshTrigger]);
 
   useEffect(() => {
     // Update tags whenever expenses change
@@ -97,15 +110,20 @@ function ExpenseList({
     }
   };
 
-  const handleDelete = async (expenseId) => {
-    if (!window.confirm('Are you sure you want to delete this expense?')) {
-      return;
-    }
+  const handleDelete = async () => {
+    if (!deleteConfirmation) return;
 
-    setDeletingId(expenseId);
-    await onDelete(expenseId);
-    setExpenses(expenses.filter(e => e.id !== expenseId));
-    setDeletingId(null);
+    setDeletingId(deleteConfirmation.id);
+    setDeleteConfirmation(null);
+
+    try {
+      await onDelete(deleteConfirmation.id);
+      setExpenses(expenses.filter(e => e.id !== deleteConfirmation.id));
+    } catch (error) {
+      console.error('Error deleting expense:', error);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   // Sync filters with URL params
@@ -535,7 +553,11 @@ function ExpenseList({
                               </button>
                               <button
                                 className="delete-button"
-                                onClick={() => handleDelete(expense.id)}
+                                onClick={() => setDeleteConfirmation({
+                                  id: expense.id,
+                                  description: expense.description,
+                                  amount: expense.amount
+                                })}
                                 disabled={deletingId === expense.id}
                               >
                                 {deletingId === expense.id ? 'Deleting...' : 'Delete'}
@@ -588,7 +610,11 @@ function ExpenseList({
                         <button
                           onClick={() => {
                             setOpenMenuId(null);
-                            handleDelete(expense.id);
+                            setDeleteConfirmation({
+                              id: expense.id,
+                              description: expense.description,
+                              amount: expense.amount
+                            });
                           }}
                           className="menu-item delete"
                           disabled={deletingId === expense.id}
@@ -655,6 +681,23 @@ function ExpenseList({
           </div>
         </div>
       )}
+
+      <DeleteConfirmation
+        isOpen={deleteConfirmation !== null}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirmation(null)}
+        itemName="Expense"
+        itemDetails={deleteConfirmation && (
+          <div>
+            <div style={{ marginBottom: '0.5rem' }}>
+              <strong>{deleteConfirmation.description}</strong>
+            </div>
+            <div style={{ color: '#667eea', fontWeight: 'bold', fontSize: '1.25rem' }}>
+              ${parseFloat(deleteConfirmation.amount).toFixed(2)}
+            </div>
+          </div>
+        )}
+      />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import TagInput from './TagInput';
 import './AddExpenseModal.css';
 
 function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
@@ -15,6 +16,9 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0, successes: 0, failures: 0 });
   const [processedFiles, setProcessedFiles] = useState([]);
+  const [confirmationData, setConfirmationData] = useState(null);
+  const [isEditingConfirmation, setIsEditingConfirmation] = useState(false);
+  const [availableTags, setAvailableTags] = useState([]);
   const recognitionRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -97,6 +101,29 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
     setSelectedFiles([]);
     setBulkProgress({ current: 0, total: 0, successes: 0, failures: 0 });
     setProcessedFiles([]);
+    setConfirmationData(null);
+    setIsEditingConfirmation(false);
+  };
+
+  // Fetch available tags when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchAvailableTags();
+    }
+  }, [isOpen]);
+
+  const fetchAvailableTags = async () => {
+    try {
+      const response = await fetch(`${apiUrl}/api/expenses?limit=1000`, {
+        headers: getAuthHeader(),
+      });
+      const expenses = await response.json();
+      const tags = new Set();
+      expenses.forEach(e => e.tags?.forEach(t => tags.add(t)));
+      setAvailableTags([...tags].sort());
+    } catch (err) {
+      console.error('Error fetching tags:', err);
+    }
   };
 
   // ==================== VOICE RECORDING ====================
@@ -271,7 +298,9 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
       }
 
       if (data.parsed_expense) {
-        await createExpense(data.parsed_expense);
+        console.log('Parsed expense data:', data.parsed_expense);
+        setConfirmationData(data.parsed_expense);
+        setMode('confirm');
       } else {
         throw new Error('Could not parse expense from transcription');
       }
@@ -433,7 +462,9 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
       }
 
       if (data.parsed_expense) {
-        await createExpense(data.parsed_expense);
+        console.log('Parsed expense data from image:', data.parsed_expense);
+        setConfirmationData(data.parsed_expense);
+        setMode('confirm');
       } else {
         throw new Error('Could not extract expense from image');
       }
@@ -843,6 +874,197 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
 
           <div className="modal-hint">
             Select a photo, drag & drop, or paste from clipboard
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== CONFIRMATION MODE ====================
+
+  if (mode === 'confirm' && confirmationData) {
+    return (
+      <div className="modal-overlay" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-content confirmation-modal" onClick={(e) => e.stopPropagation()}>
+          <button className="modal-close" onClick={() => {
+            setConfirmationData(null);
+            setMode(null);
+            onClose();
+          }}>&times;</button>
+
+          <h2>Review Expense</h2>
+          <p className="modal-subtitle">
+            {isEditingConfirmation ? 'Edit the details below' : 'Please review the details'}
+          </p>
+
+          <div className="confirmation-fields">
+            <div className="confirmation-field">
+              <label>Date</label>
+              {isEditingConfirmation ? (
+                <input
+                  type="date"
+                  value={confirmationData.date ? new Date(confirmationData.date).toISOString().split('T')[0] : ''}
+                  onChange={(e) => setConfirmationData({...confirmationData, date: e.target.value})}
+                  className="confirmation-input"
+                />
+              ) : (
+                <div className="confirmation-value">
+                  {new Date(confirmationData.date).toLocaleDateString()}
+                </div>
+              )}
+            </div>
+
+            <div className="confirmation-field">
+              <label>Description</label>
+              {isEditingConfirmation ? (
+                <input
+                  type="text"
+                  value={confirmationData.description}
+                  onChange={(e) => setConfirmationData({...confirmationData, description: e.target.value})}
+                  className="confirmation-input"
+                />
+              ) : (
+                <div className="confirmation-value">{confirmationData.description}</div>
+              )}
+            </div>
+
+            <div className="confirmation-field">
+              <label>Amount</label>
+              {isEditingConfirmation ? (
+                <input
+                  type="number"
+                  step="0.01"
+                  value={confirmationData.amount}
+                  onChange={(e) => setConfirmationData({...confirmationData, amount: parseFloat(e.target.value)})}
+                  className="confirmation-input"
+                />
+              ) : (
+                <div className="confirmation-value amount">
+                  ${parseFloat(confirmationData.amount).toFixed(2)}
+                </div>
+              )}
+            </div>
+
+            <div className="confirmation-field">
+              <label>Recipient</label>
+              {isEditingConfirmation ? (
+                <input
+                  type="text"
+                  value={confirmationData.recipient}
+                  onChange={(e) => setConfirmationData({...confirmationData, recipient: e.target.value})}
+                  className="confirmation-input"
+                />
+              ) : (
+                <div className="confirmation-value">{confirmationData.recipient}</div>
+              )}
+            </div>
+
+            {(confirmationData.materials || isEditingConfirmation) && (
+              <div className="confirmation-field">
+                <label>Materials (Optional)</label>
+                {isEditingConfirmation ? (
+                  <input
+                    type="text"
+                    value={confirmationData.materials || ''}
+                    onChange={(e) => setConfirmationData({...confirmationData, materials: e.target.value})}
+                    className="confirmation-input"
+                  />
+                ) : (
+                  <div className="confirmation-value">{confirmationData.materials || '—'}</div>
+                )}
+              </div>
+            )}
+
+            {(confirmationData.hours || isEditingConfirmation) && (
+              <div className="confirmation-field">
+                <label>Hours (Optional)</label>
+                {isEditingConfirmation ? (
+                  <input
+                    type="number"
+                    step="0.25"
+                    value={confirmationData.hours || ''}
+                    onChange={(e) => setConfirmationData({...confirmationData, hours: parseFloat(e.target.value)})}
+                    className="confirmation-input"
+                  />
+                ) : (
+                  <div className="confirmation-value">{confirmationData.hours || '—'}</div>
+                )}
+              </div>
+            )}
+
+            <div className="confirmation-field">
+              <label>Tags</label>
+              {isEditingConfirmation ? (
+                <TagInput
+                  tags={Array.isArray(confirmationData.tags) ? confirmationData.tags : []}
+                  onChange={(tags) => setConfirmationData({...confirmationData, tags})}
+                  availableTags={availableTags}
+                  placeholder="Add tags..."
+                />
+              ) : (
+                <div className="confirmation-value">
+                  {Array.isArray(confirmationData.tags) && confirmationData.tags.length > 0 ? (
+                    confirmationData.tags.map((tag, idx) => (
+                      <span key={idx} className="tag-badge">{tag}</span>
+                    ))
+                  ) : (
+                    <span>None</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {error && (
+            <div className="modal-error">{error}</div>
+          )}
+
+          <div className="confirmation-actions">
+            {isEditingConfirmation ? (
+              <>
+                <button
+                  onClick={() => setIsEditingConfirmation(false)}
+                  className="cancel-button"
+                >
+                  Cancel Edit
+                </button>
+                <button
+                  onClick={async () => {
+                    setIsEditingConfirmation(false);
+                    await createExpense(confirmationData);
+                  }}
+                  className="save-button"
+                >
+                  Add Expense
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => {
+                    setConfirmationData(null);
+                    setMode(null);
+                  }}
+                  className="cancel-button"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => setIsEditingConfirmation(true)}
+                  className="edit-button"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={async () => {
+                    await createExpense(confirmationData);
+                  }}
+                  className="add-button"
+                >
+                  Add Expense
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

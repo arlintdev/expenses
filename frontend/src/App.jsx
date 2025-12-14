@@ -22,12 +22,14 @@ function AppContent() {
   const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Derive active tab from current route
   const activeTab = location.pathname.split('/')[1] || 'dashboard';
 
   const handleExpenseAdded = (newExpense) => {
     setIsModalOpen(false);
+    setRefreshTrigger(prev => prev + 1);
     // Navigate to expenses if not already there
     if (!location.pathname.startsWith('/expenses')) {
       navigate('/expenses');
@@ -208,7 +210,7 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardRoute apiUrl={API_URL} />} />
-          <Route path="/expenses" element={<ExpensesRoute apiUrl={API_URL} onDelete={handleExpenseDeleted} />} />
+          <Route path="/expenses" element={<ExpensesRoute apiUrl={API_URL} onDelete={handleExpenseDeleted} refreshTrigger={refreshTrigger} />} />
           <Route path="/expenses/:id/edit" element={<ExpenseEditRoute apiUrl={API_URL} />} />
           <Route path="/tags" element={<TagsRoute apiUrl={API_URL} />} />
           <Route path="/categories" element={<Navigate to="/tags" replace />} />

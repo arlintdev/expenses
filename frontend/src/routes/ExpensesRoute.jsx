@@ -1,7 +1,7 @@
 import { useSearchParams } from 'react-router-dom';
 import ExpenseList from '../components/ExpenseList';
 
-function ExpensesRoute({ apiUrl, onDelete }) {
+function ExpensesRoute({ apiUrl, onDelete, refreshTrigger }) {
   const [searchParams] = useSearchParams();
 
   // Read URL params for filters
@@ -18,6 +18,7 @@ function ExpensesRoute({ apiUrl, onDelete }) {
       initialYear={year}
       initialTags={tags}
       initialSearch={search}
+      refreshTrigger={refreshTrigger}
     />
   );
 }
