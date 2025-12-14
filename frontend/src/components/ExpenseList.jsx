@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { MdDescription, MdPerson, MdBuild, MdAccessTime, MdLocalOffer } from 'react-icons/md';
-import PullToRefresh from 'react-pull-to-refresh';
 import TagInput from './TagInput';
 import './ExpenseList.css';
 
@@ -19,7 +18,6 @@ function ExpenseList({ apiUrl, onDelete }) {
   const [editingExpenseId, setEditingExpenseId] = useState(null);
   const [editFormData, setEditFormData] = useState({});
   const [availableTags, setAvailableTags] = useState([]);
-  const [refreshing, setRefreshing] = useState(false);
   const observer = useRef();
   const scrollContainerRef = useRef();
   const lastExpenseRef = useCallback(node => {
@@ -148,20 +146,6 @@ function ExpenseList({ apiUrl, onDelete }) {
       console.error('Error updating expense:', error);
       alert(`Failed to update expense: ${error.message}`);
     }
-  };
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    setExpenses([]);
-    setPage(0);
-    setHasMore(true);
-
-    // Wait a bit to show the refresh animation
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Fetch fresh data
-    await fetchExpenses();
-    setRefreshing(false);
   };
 
   const formatDate = (dateString) => {
@@ -343,7 +327,7 @@ function ExpenseList({ apiUrl, onDelete }) {
           <p>No expenses found{hasActiveFilters ? ' matching your filters' : ''}.</p>
         </div>
       ) : (
-        <PullToRefresh onRefresh={handleRefresh} className="pull-to-refresh-wrapper">
+        <div className="expenses-scroll-wrapper">
           <div className="expenses-scroll" ref={scrollContainerRef}>
           {/* Desktop Table View */}
           <div className="expenses-table-wrapper">
@@ -664,7 +648,7 @@ function ExpenseList({ apiUrl, onDelete }) {
             <div className="loading-more">Loading more...</div>
           )}
           </div>
-        </PullToRefresh>
+        </div>
       )}
     </div>
   );
