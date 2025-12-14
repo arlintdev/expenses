@@ -132,12 +132,15 @@
   flex: 1;
   overflow-y: auto;
   background: #f5f5f5;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .expenses-scroll {
   padding: 1rem;
   background: #f5f5f5;
   min-height: 100%;
+  touch-action: pan-y;
 }
 
 .expense-card {
@@ -147,6 +150,7 @@
   margin-bottom: 1rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   transition: box-shadow 0.2s ease;
+  touch-action: pan-y;
 }
 
 .expense-card.editing {
@@ -194,6 +198,7 @@
   padding: 0.5rem;
   border-radius: 8px;
   transition: background 0.2s ease;
+  touch-action: pan-y;
 }
 
 .expense-field:hover {
