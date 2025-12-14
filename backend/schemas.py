@@ -65,3 +65,29 @@ class VoiceTranscriptionResponse(BaseModel):
     transcription: str
     parsed_expense: Optional[ExpenseCreate] = None
     warning: Optional[str] = None
+
+# Analytics schemas
+class SummaryStats(BaseModel):
+    total_amount: float = Field(..., description="Total amount spent")
+    expense_count: int = Field(..., description="Number of expenses")
+    average_amount: float = Field(..., description="Average expense amount")
+    date_from: Optional[datetime] = Field(None, description="Start date of range")
+    date_to: Optional[datetime] = Field(None, description="End date of range")
+
+class TagSpending(BaseModel):
+    tag: str = Field(..., description="Tag name")
+    total_amount: float = Field(..., description="Total spent for this tag")
+    expense_count: int = Field(..., description="Number of expenses with this tag")
+    percentage: float = Field(..., description="Percentage of total spending")
+
+class ByTagResponse(BaseModel):
+    data: List[TagSpending]
+    total_amount: float
+
+class DateSpending(BaseModel):
+    date: str = Field(..., description="Date in YYYY-MM-DD format")
+    amount: float = Field(..., description="Total amount for this date")
+    expense_count: int = Field(..., description="Number of expenses on this date")
+
+class ByDateResponse(BaseModel):
+    data: List[DateSpending]

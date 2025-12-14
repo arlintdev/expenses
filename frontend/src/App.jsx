@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import './App.css';
+import Dashboard from './components/Dashboard';
 import ExpenseList from './components/ExpenseList';
 import BottomNav from './components/BottomNav';
 import RecordingModal from './components/RecordingModal';
@@ -15,7 +16,7 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 function App() {
   const { user, loading, logout, getAuthHeader } = useAuth();
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('expenses');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -70,6 +71,19 @@ function App() {
 
         <nav className="sidebar-nav">
           <button
+            className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setActiveTab('dashboard')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+            <span>Dashboard</span>
+          </button>
+
+          <button
             className={`nav-link ${activeTab === 'expenses' ? 'active' : ''}`}
             onClick={() => setActiveTab('expenses')}
           >
@@ -85,12 +99,10 @@ function App() {
             onClick={() => setActiveTab('categories')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="7" height="7" />
-              <rect x="14" y="3" width="7" height="7" />
-              <rect x="14" y="14" width="7" height="7" />
-              <rect x="3" y="14" width="7" height="7" />
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+              <line x1="7" y1="7" x2="7.01" y2="7" />
             </svg>
-            <span>Categories</span>
+            <span>Tags</span>
           </button>
 
           <button
@@ -196,6 +208,10 @@ function App() {
             <button onClick={() => setError(null)}>&times;</button>
           </div>
         )}
+
+        <div className={`tab-content ${activeTab === 'dashboard' ? 'active' : ''}`}>
+          <Dashboard apiUrl={API_URL} />
+        </div>
 
         <div className={`tab-content ${activeTab === 'expenses' ? 'active' : ''}`}>
           <ExpenseList

@@ -16,6 +16,7 @@ class ClaudeService:
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable is not set")
         self.client = Anthropic(api_key=api_key)
+        self.model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
 
     def parse_expense_from_text(self, transcription: str, available_tags: list = None, user_context: str = None) -> tuple[Dict[str, Any], Optional[str]]:
         """
@@ -68,7 +69,7 @@ If any information is missing or unclear, make reasonable assumptions based on c
 
         try:
             message = self.client.messages.create(
-                model="claude-sonnet-4-5-20250929",
+                model=self.model,
                 max_tokens=1000,
                 messages=[
                     {"role": "user", "content": prompt}
@@ -147,7 +148,7 @@ If any information is missing or unclear, make reasonable assumptions based on c
         """
         try:
             message = self.client.messages.create(
-                model="claude-sonnet-4-5-20250929",
+                model=self.model,
                 max_tokens=1000,
                 messages=[
                     {

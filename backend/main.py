@@ -3,19 +3,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.orm import joinedload
 from typing import List, Optional
 import os
 from pathlib import Path
 from dotenv import load_dotenv
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from models import init_db, get_db, Expense, User, Tag, AsyncSessionLocal
 from schemas import (
     ExpenseCreate, ExpenseResponse, VoiceTranscriptionResponse,
-    GoogleAuthRequest, AuthResponse, UserResponse
+    GoogleAuthRequest, AuthResponse, UserResponse,
+    SummaryStats, TagSpending, ByTagResponse, DateSpending, ByDateResponse
 )
 from claude_service import ClaudeService
 from auth import verify_google_token, create_access_token, get_current_user, get_or_create_user
@@ -150,6 +151,185 @@ async def update_user_settings(
     return {
         "expense_context": current_user.expense_context or ""
     }
+
+# Analytics endpoints
+@app.get("/api/analytics/summary", response_model=SummaryStats)
+async def get_summary_stats(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get summary statistics for the current user's expenses.
+    date_from: ISO format date string (YYYY-MM-DD)
+    date_to: ISO format date string (YYYY-MM-DD)
+    """
+    try:
+        query = select(
+            func.coalesce(func.sum(Expense.amount), 0).label('total_amount'),
+            func.count(Expense.id).label('expense_count'),
+            func.coalesce(func.avg(Expense.amount), 0).label('average_amount')
+        ).filter(Expense.user_id == current_user.id)
+
+        parsed_date_from = None
+        parsed_date_to = None
+
+        if date_from:
+            parsed_date_from = datetime.fromisoformat(date_from)
+            query = query.filter(Expense.date >= parsed_date_from)
+
+        if date_to:
+            parsed_date_to = datetime.fromisoformat(date_to)
+            query = query.filter(Expense.date < parsed_date_to + timedelta(days=1))
+
+        result = await db.execute(query)
+        row = result.first()
+
+        return SummaryStats(
+            total_amount=float(row.total_amount) if row.total_amount else 0.0,
+            expense_count=int(row.expense_count) if row.expense_count else 0,
+            average_amount=float(row.average_amount) if row.average_amount else 0.0,
+            date_from=parsed_date_from,
+            date_to=parsed_date_to
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch summary stats: {str(e)}")
+
+@app.get("/api/analytics/by-tag", response_model=ByTagResponse)
+async def get_spending_by_tag(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get spending grouped by tag for the current user.
+    Returns tags with their total spending and percentage of total.
+    """
+    try:
+        # First get total amount for percentage calculation
+        total_query = select(
+            func.coalesce(func.sum(Expense.amount), 0).label('total')
+        ).filter(Expense.user_id == current_user.id)
+
+        if date_from:
+            parsed_date_from = datetime.fromisoformat(date_from)
+            total_query = total_query.filter(Expense.date >= parsed_date_from)
+
+        if date_to:
+            parsed_date_to = datetime.fromisoformat(date_to)
+            total_query = total_query.filter(Expense.date < parsed_date_to + timedelta(days=1))
+
+        total_result = await db.execute(total_query)
+        total_amount = float(total_result.scalar() or 0.0)
+
+        # Query spending by tag
+        query = select(
+            Tag.name,
+            func.sum(Expense.amount).label('total_amount'),
+            func.count(Expense.id).label('expense_count')
+        ).join(Expense).filter(
+            Expense.user_id == current_user.id
+        ).group_by(Tag.name).order_by(func.sum(Expense.amount).desc())
+
+        if date_from:
+            parsed_date_from = datetime.fromisoformat(date_from)
+            query = query.filter(Expense.date >= parsed_date_from)
+
+        if date_to:
+            parsed_date_to = datetime.fromisoformat(date_to)
+            query = query.filter(Expense.date < parsed_date_to + timedelta(days=1))
+
+        result = await db.execute(query)
+        rows = result.all()
+
+        tag_data = []
+        for row in rows:
+            percentage = (row.total_amount / total_amount * 100) if total_amount > 0 else 0
+            tag_data.append(TagSpending(
+                tag=row.name,
+                total_amount=float(row.total_amount),
+                expense_count=int(row.expense_count),
+                percentage=round(percentage, 2)
+            ))
+
+        # Handle expenses without tags
+        untagged_query = select(
+            func.sum(Expense.amount).label('total_amount'),
+            func.count(Expense.id).label('expense_count')
+        ).outerjoin(Tag).filter(
+            Expense.user_id == current_user.id,
+            Tag.id == None
+        )
+
+        if date_from:
+            parsed_date_from = datetime.fromisoformat(date_from)
+            untagged_query = untagged_query.filter(Expense.date >= parsed_date_from)
+
+        if date_to:
+            parsed_date_to = datetime.fromisoformat(date_to)
+            untagged_query = untagged_query.filter(Expense.date < parsed_date_to + timedelta(days=1))
+
+        untagged_result = await db.execute(untagged_query)
+        untagged_row = untagged_result.first()
+
+        if untagged_row and untagged_row.total_amount:
+            percentage = (untagged_row.total_amount / total_amount * 100) if total_amount > 0 else 0
+            tag_data.append(TagSpending(
+                tag="Untagged",
+                total_amount=float(untagged_row.total_amount),
+                expense_count=int(untagged_row.expense_count),
+                percentage=round(percentage, 2)
+            ))
+
+        return ByTagResponse(data=tag_data, total_amount=total_amount)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch spending by tag: {str(e)}")
+
+@app.get("/api/analytics/by-date", response_model=ByDateResponse)
+async def get_spending_by_date(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get spending grouped by date for trend analysis.
+    Returns daily totals for the specified date range.
+    """
+    try:
+        # Query spending by date
+        query = select(
+            func.date(Expense.date).label('expense_date'),
+            func.sum(Expense.amount).label('total_amount'),
+            func.count(Expense.id).label('expense_count')
+        ).filter(
+            Expense.user_id == current_user.id
+        ).group_by(func.date(Expense.date)).order_by(func.date(Expense.date))
+
+        if date_from:
+            parsed_date_from = datetime.fromisoformat(date_from)
+            query = query.filter(Expense.date >= parsed_date_from)
+
+        if date_to:
+            parsed_date_to = datetime.fromisoformat(date_to)
+            query = query.filter(Expense.date < parsed_date_to + timedelta(days=1))
+
+        result = await db.execute(query)
+        rows = result.all()
+
+        date_data = []
+        for row in rows:
+            date_data.append(DateSpending(
+                date=str(row.expense_date),
+                amount=float(row.total_amount),
+                expense_count=int(row.expense_count)
+            ))
+
+        return ByDateResponse(data=date_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch spending by date: {str(e)}")
 
 # Expense endpoints
 @app.post("/api/expenses", response_model=ExpenseResponse, status_code=201)
