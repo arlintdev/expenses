@@ -12,6 +12,8 @@ function ExpenseList({ apiUrl, onDelete }) {
   const [page, setPage] = useState(0);
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchText, setSearchText] = useState('');
   const [deletingId, setDeletingId] = useState(null);
   const [editingExpenseId, setEditingExpenseId] = useState(null);
   const [editFormData, setEditFormData] = useState({});
@@ -217,30 +219,94 @@ function ExpenseList({ apiUrl, onDelete }) {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
-  const totalAmount = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  // Client-side filtering based on category and search text
+  const filteredExpenses = expenses.filter(expense => {
+    // Category filter
+    if (selectedCategory !== 'all' && expense.category !== selectedCategory) {
+      return false;
+    }
+
+    // Search text filter (searches across description, recipient, and materials)
+    if (searchText.trim()) {
+      const searchLower = searchText.toLowerCase();
+      const matchesDescription = expense.description?.toLowerCase().includes(searchLower);
+      const matchesRecipient = expense.recipient?.toLowerCase().includes(searchLower);
+      const matchesMaterials = expense.materials?.toLowerCase().includes(searchLower);
+      const matchesCategory = expense.category?.toLowerCase().includes(searchLower);
+
+      if (!matchesDescription && !matchesRecipient && !matchesMaterials && !matchesCategory) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  const totalAmount = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+
+  const handleClearFilters = () => {
+    setSelectedMonth('all');
+    setSelectedYear(new Date().getFullYear());
+    setSelectedCategory('all');
+    setSearchText('');
+  };
+
+  const hasActiveFilters = selectedMonth !== 'all' ||
+    selectedYear !== new Date().getFullYear() ||
+    selectedCategory !== 'all' ||
+    searchText.trim() !== '';
 
   return (
     <div className="expense-list">
       <div className="filters">
-        <select
-          value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
-          className="month-filter"
-        >
-          {months.map(month => (
-            <option key={month.value} value={month.value}>{month.label}</option>
-          ))}
-        </select>
+        <div className="filters-row">
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="filter-select"
+          >
+            {months.map(month => (
+              <option key={month.value} value={month.value}>{month.label}</option>
+            ))}
+          </select>
 
-        <select
-          value={selectedYear}
-          onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-          className="year-filter"
-        >
-          {years.map(year => (
-            <option key={year} value={year}>{year}</option>
-          ))}
-        </select>
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+            className="filter-select"
+          >
+            {years.map(year => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
+
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="filter-select"
+          >
+            <option value="all">All Categories</option>
+            {availableCategories.map((category, idx) => (
+              <option key={idx} value={category}>{category}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filters-row">
+          <input
+            type="text"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            placeholder="Search expenses..."
+            className="search-input"
+          />
+
+          {hasActiveFilters && (
+            <button onClick={handleClearFilters} className="clear-filters-button">
+              Clear Filters
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="summary">
@@ -252,9 +318,9 @@ function ExpenseList({ apiUrl, onDelete }) {
         </button>
       </div>
 
-      {expenses.length === 0 && !loading ? (
+      {filteredExpenses.length === 0 && !loading ? (
         <div className="empty-state">
-          <p>No expenses found.</p>
+          <p>No expenses found{hasActiveFilters ? ' matching your filters' : ''}.</p>
         </div>
       ) : (
         <PullToRefresh onRefresh={handleRefresh} className="pull-to-refresh-wrapper">
@@ -275,7 +341,7 @@ function ExpenseList({ apiUrl, onDelete }) {
                 </tr>
               </thead>
               <tbody>
-                {expenses.map((expense, index) => {
+                {filteredExpenses.map((expense, index) => {
                   const isLast = index === expenses.length - 1;
                   const isEditing = editingExpenseId === expense.id;
 
@@ -408,7 +474,7 @@ function ExpenseList({ apiUrl, onDelete }) {
           </div>
 
           {/* Mobile Card View */}
-          {expenses.map((expense, index) => {
+          {filteredExpenses.map((expense, index) => {
             const isLast = index === expenses.length - 1;
             const isEditing = editingExpenseId === expense.id;
 

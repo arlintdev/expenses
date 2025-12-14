@@ -18,6 +18,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('expenses');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   const handleExpenseAdded = (newExpense) => {
     setRefreshTrigger(prev => prev + 1);
@@ -98,7 +99,7 @@ function App() {
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="3" />
-              <path d="M12 1v6m0 6v6m8.66-10.5l-5.2 3M8.54 14.5l-5.2 3m16.66 0l-5.2-3M8.54 9.5l-5.2-3" />
+              <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24" />
             </svg>
             <span>Settings</span>
           </button>
@@ -133,8 +134,58 @@ function App() {
           <h1>Expenses</h1>
         </div>
         <div className="user-menu">
-          {user.picture && <img src={user.picture} alt={user.name} className="user-avatar" />}
-          <button onClick={logout} className="logout-button">Logout</button>
+          <button
+            className="user-avatar-button"
+            onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+          >
+            {user.picture && <img src={user.picture} alt={user.name} className="user-avatar" />}
+          </button>
+
+          {isProfileMenuOpen && (
+            <>
+              <div
+                className="profile-menu-overlay"
+                onClick={() => setIsProfileMenuOpen(false)}
+              />
+              <div className="profile-menu">
+                <div className="profile-menu-header">
+                  {user.picture && <img src={user.picture} alt={user.name} className="profile-menu-avatar" />}
+                  <div className="profile-menu-info">
+                    <div className="profile-menu-name">{user.name}</div>
+                    <div className="profile-menu-email">{user.email}</div>
+                  </div>
+                </div>
+                <div className="profile-menu-divider" />
+                <button
+                  className="profile-menu-item"
+                  onClick={() => {
+                    setActiveTab('settings');
+                    setIsProfileMenuOpen(false);
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24" />
+                  </svg>
+                  <span>Settings</span>
+                </button>
+                <button
+                  className="profile-menu-item logout"
+                  onClick={() => {
+                    logout();
+                    setIsProfileMenuOpen(false);
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                  </svg>
+                  <span>Logout</span>
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </header>
 
