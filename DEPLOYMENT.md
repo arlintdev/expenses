@@ -36,12 +36,12 @@ curl -O https://raw.githubusercontent.com/arlintdev/expenses/main/deploy.sh
 chmod +x deploy.sh
 
 # Create .env file with your credentials
-nano .env.production
+nano .env
 ```
 
 ### 4. Configure environment variables
 
-Copy the following into `.env.production` (or create it with `nano .env.production`):
+Create a `.env` file with your credentials (create it with `nano .env`):
 
 ```bash
 # Anthropic API Key
@@ -61,7 +61,7 @@ GOOGLE_CLIENT_SECRET=your_google_client_secret_here
 JWT_SECRET_KEY=your_secure_jwt_secret_key_here
 ```
 
-**Note:** You'll need to copy your actual credentials from the `.env.production` file you created earlier.
+**Note:** Replace the placeholder values with your actual credentials.
 
 **Important:** Update the Google OAuth redirect URIs in your Google Cloud Console:
 - Add: `http://192.168.68.63:3000`

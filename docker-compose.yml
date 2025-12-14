@@ -7,13 +7,11 @@ services:
     restart: unless-stopped
     ports:
       - "3000:8000"  # Map Pi port 3000 to container port 8000
+    env_file:
+      - .env  # Load environment variables from .env file
     environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - DATABASE_URL=sqlite:///./data/expenses.db
       - CORS_ORIGINS=${CORS_ORIGINS:-http://192.168.68.63:3000,http://localhost:3000}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
     volumes:
       - ./data:/app/data  # Persist database outside container
     networks:
