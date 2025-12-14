@@ -36,6 +36,17 @@ function BottomNav({ activeTab, onTabChange, onMicClick }) {
         </svg>
         <span>Categories</span>
       </button>
+
+      <button
+        className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
+        onClick={() => onTabChange('settings')}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 1v6m0 6v6m8.66-10.5l-5.2 3M8.54 14.5l-5.2 3m16.66 0l-5.2-3M8.54 9.5l-5.2-3" />
+        </svg>
+        <span>Settings</span>
+      </button>
     </nav>
   );
 }

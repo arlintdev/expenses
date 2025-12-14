@@ -17,13 +17,14 @@ class ClaudeService:
             raise ValueError("ANTHROPIC_API_KEY environment variable is not set")
         self.client = Anthropic(api_key=api_key)
 
-    def parse_expense_from_text(self, transcription: str, available_categories: list = None) -> Dict[str, Any]:
+    def parse_expense_from_text(self, transcription: str, available_categories: list = None, user_context: str = None) -> Dict[str, Any]:
         """
         Parse expense information from transcribed text using Claude API.
 
         Args:
             transcription: The transcribed text to parse
             available_categories: List of user's existing categories for context
+            user_context: Custom context provided by the user for expense generation
         """
         today = datetime.now().strftime("%Y-%m-%d")
 
@@ -33,6 +34,11 @@ class ClaudeService:
             category_list = ", ".join(available_categories)
             category_context = f"\n\nThe user has the following categories available: {category_list}\nIf the expense seems to fit one of these categories, use it. Otherwise, you can suggest a new category or leave it null."
 
+        # Build user context
+        context_instruction = ""
+        if user_context and user_context.strip():
+            context_instruction = f"\n\nIMPORTANT USER CONTEXT:\n{user_context}\n\nPlease follow these instructions when parsing and formatting the expense."
+
         prompt = f"""You are an expense tracking assistant. Parse the following expense description and extract:
 1. description: What the expense is for (title/description)
 2. recipient: Who the expense is for
@@ -40,7 +46,7 @@ class ClaudeService:
 4. hours: The number of hours worked (optional, only if mentioned - use null if not specified)
 5. category: The expense category (optional - use null if not specified){category_context}
 6. amount: The numeric amount (just the number, no currency symbols) - REQUIRED
-7. date: The date in YYYY-MM-DD format (if not mentioned, use today's date: {today})
+7. date: The date in YYYY-MM-DD format (if not mentioned, use today's date: {today}){context_instruction}
 
 Input: "{transcription}"
 

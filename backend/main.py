@@ -107,6 +107,37 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
         created_at=current_user.created_at
     )
 
+@app.get("/api/settings")
+async def get_user_settings(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get user settings including expense context.
+    """
+    return {
+        "expense_context": current_user.expense_context or ""
+    }
+
+@app.patch("/api/settings")
+async def update_user_settings(
+    settings: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update user settings including expense context.
+    """
+    if "expense_context" in settings:
+        current_user.expense_context = settings["expense_context"] if settings["expense_context"] else None
+
+    db.commit()
+    db.refresh(current_user)
+
+    return {
+        "expense_context": current_user.expense_context or ""
+    }
+
 # Category endpoints
 @app.get("/api/categories", response_model=List[CategoryResponse])
 def get_categories(
@@ -370,7 +401,10 @@ async def transcribe_text(
         ).distinct().all()
         category_names = [cat[0] for cat in expense_categories if cat[0]]
 
-        parsed_expense = claude_service.parse_expense_from_text(transcription, category_names)
+        # Get user's custom expense context
+        user_context = current_user.expense_context
+
+        parsed_expense = claude_service.parse_expense_from_text(transcription, category_names, user_context)
 
         return VoiceTranscriptionResponse(
             transcription=transcription,

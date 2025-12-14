@@ -5,6 +5,7 @@ import BottomNav from './components/BottomNav';
 import RecordingModal from './components/RecordingModal';
 import Login from './components/Login';
 import CategoryManager from './components/CategoryManager';
+import Settings from './components/Settings';
 import { useAuth } from './context/AuthContext';
 
 // Use relative URL when in production (served from same origin)
@@ -80,6 +81,10 @@ function App() {
 
         <div className={`tab-content ${activeTab === 'categories' ? 'active' : ''}`}>
           <CategoryManager apiUrl={API_URL} />
+        </div>
+
+        <div className={`tab-content ${activeTab === 'settings' ? 'active' : ''}`}>
+          <Settings apiUrl={API_URL} />
         </div>
       </main>
 

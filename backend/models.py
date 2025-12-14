@@ -25,6 +25,7 @@ class User(Base):
     google_id = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=True)
     picture = Column(String, nullable=True)
+    expense_context = Column(String, nullable=True)  # Custom context for expense generation
     created_at = Column(DateTime, default=datetime.utcnow)
 
     expenses = relationship("Expense", back_populates="user", cascade="all, delete-orphan")
