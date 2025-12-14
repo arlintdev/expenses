@@ -538,7 +538,11 @@ function ExpenseList({ apiUrl, onDelete }) {
                       placeholder="Description"
                     />
                   ) : (
-                    <span className="field-value">{expense.description || '—'}</span>
+                    <span className="field-value" title={expense.description}>
+                      {expense.description && expense.description.length > 50
+                        ? expense.description.substring(0, 50) + '...'
+                        : expense.description || '—'}
+                    </span>
                   )}
                 </div>
 
