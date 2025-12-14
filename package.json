@@ -1,0 +1,17 @@
+{
+  "name": "expense-tracker",
+  "version": "1.0.0",
+  "description": "Expense tracking app with voice input powered by Claude AI",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && source venv/bin/activate && uvicorn main:app --reload --port 8000",
+    "dev:frontend": "cd frontend && npm run dev",
+    "install:all": "cd backend && /usr/bin/python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt && cd ../frontend && npm install"
+  },
+  "keywords": ["expense-tracker", "voice-input", "claude-ai", "react", "fastapi"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

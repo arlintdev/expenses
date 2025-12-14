@@ -1,0 +1,57 @@
+# Node
+node_modules/
+npm-debug.log
+frontend/dist/
+frontend/.vite/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/venv/
+backend/env/
+backend/venv*/
+backend/ENV/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+._*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+backend/data/
+
+# Logs
+*.log
+logs/
+
+# Build
+build/
+dist/
+
+# Testing
+coverage/
+.coverage
+
+# Docker
+docker-compose.override.yml
