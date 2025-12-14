@@ -57,8 +57,29 @@ class Expense(Base):
 
     user = relationship("User", back_populates="expenses")
 
+def run_migrations():
+    """
+    Run database migrations to update schema without losing data.
+    """
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+
+    # Check if users table exists
+    if 'users' in inspector.get_table_names():
+        columns = [col['name'] for col in inspector.get_columns('users')]
+
+        # Add expense_context column if it doesn't exist
+        if 'expense_context' not in columns:
+            print("⚙️  Running migration: Adding expense_context column to users table")
+            with engine.connect() as conn:
+                conn.execute(text('ALTER TABLE users ADD COLUMN expense_context VARCHAR'))
+                conn.commit()
+            print("✅ Migration completed: expense_context column added")
+
 def init_db():
     Base.metadata.create_all(bind=engine)
+    run_migrations()
 
 def get_db():
     db = SessionLocal()
