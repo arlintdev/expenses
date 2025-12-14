@@ -6,6 +6,12 @@
   margin: 0;
 }
 
+/* Desktop Sidebar */
+.desktop-sidebar {
+  display: none;
+}
+
+/* Mobile Header */
 .app-header {
   position: sticky;
   top: 0;
@@ -19,11 +25,20 @@
   z-index: 100;
 }
 
+.mobile-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mobile-logo svg {
+  width: 32px;
+  height: 32px;
+}
+
 .app-header h1 {
   font-size: 1.5rem;
   margin: 0;
-  flex: 1;
-  text-align: center;
 }
 
 .user-menu {
@@ -143,12 +158,172 @@
 
 @media (min-width: 768px) {
   .app {
-    max-width: 1200px;
-    margin: 0 auto;
+    flex-direction: row;
+    max-width: 100%;
+    margin: 0;
   }
 
-  .app-header h1 {
-    font-size: 2rem;
+  /* Hide mobile header on desktop */
+  .mobile-header {
+    display: none;
+  }
+
+  /* Show desktop sidebar */
+  .desktop-sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 280px;
+    min-height: 100vh;
+    background: white;
+    border-right: 1px solid #e0e0e0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+
+  .sidebar-header {
+    padding: 2rem 1.5rem;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .app-logo {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .app-logo svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .sidebar-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1a1a1a;
+  }
+
+  .sidebar-nav {
+    flex: 1;
+    padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.875rem 1rem;
+    background: none;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    color: #666;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    text-align: left;
+  }
+
+  .nav-link svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+
+  .nav-link:hover {
+    background: #f5f5f5;
+    color: #667eea;
+  }
+
+  .nav-link.active {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+    color: #667eea;
+    font-weight: 600;
+  }
+
+  .sidebar-footer {
+    padding: 1rem;
+    border-top: 1px solid #e0e0e0;
+  }
+
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-radius: 10px;
+    background: #f9f9f9;
+    margin-bottom: 0.75rem;
+  }
+
+  .user-avatar-sidebar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 2px solid #667eea;
+    flex-shrink: 0;
+  }
+
+  .user-details {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .user-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .user-email {
+    font-size: 0.75rem;
+    color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .logout-button-sidebar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: #fee;
+    border: 1px solid #fcc;
+    color: #c00;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+
+  .logout-button-sidebar svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .logout-button-sidebar:hover {
+    background: #fdd;
+    border-color: #fbb;
   }
 
   .tab-content {
@@ -156,8 +331,10 @@
   }
 
   .app-main {
+    flex: 1;
     padding: 2rem;
     padding-bottom: 2rem;
+    overflow-y: auto;
   }
 
   /* Show floating mic button on desktop */

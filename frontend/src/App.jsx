@@ -55,8 +55,83 @@ function App() {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>Expenses</h1>
+      {/* Desktop Sidebar Navigation */}
+      <aside className="desktop-sidebar">
+        <div className="sidebar-header">
+          <div className="app-logo">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+              <path d="M12.5 7H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+            </svg>
+          </div>
+          <h2>ExpenseTracker</h2>
+        </div>
+
+        <nav className="sidebar-nav">
+          <button
+            className={`nav-link ${activeTab === 'expenses' ? 'active' : ''}`}
+            onClick={() => setActiveTab('expenses')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+            <span>Expenses</span>
+          </button>
+
+          <button
+            className={`nav-link ${activeTab === 'categories' ? 'active' : ''}`}
+            onClick={() => setActiveTab('categories')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+            </svg>
+            <span>Categories</span>
+          </button>
+
+          <button
+            className={`nav-link ${activeTab === 'settings' ? 'active' : ''}`}
+            onClick={() => setActiveTab('settings')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 1v6m0 6v6m8.66-10.5l-5.2 3M8.54 14.5l-5.2 3m16.66 0l-5.2-3M8.54 9.5l-5.2-3" />
+            </svg>
+            <span>Settings</span>
+          </button>
+        </nav>
+
+        <div className="sidebar-footer">
+          <div className="user-info">
+            {user.picture && <img src={user.picture} alt={user.name} className="user-avatar-sidebar" />}
+            <div className="user-details">
+              <div className="user-name">{user.name}</div>
+              <div className="user-email">{user.email}</div>
+            </div>
+          </div>
+          <button onClick={logout} className="logout-button-sidebar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile Header */}
+      <header className="app-header mobile-header">
+        <div className="mobile-logo">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+            <path d="M12.5 7H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+          </svg>
+          <h1>Expenses</h1>
+        </div>
         <div className="user-menu">
           {user.picture && <img src={user.picture} alt={user.name} className="user-avatar" />}
           <button onClick={logout} className="logout-button">Logout</button>

@@ -28,13 +28,12 @@ const Login = () => {
     <div className="login-container">
       <div className="login-card">
         <div className="login-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
-            <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
-            <path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+            <path d="M12.5 7H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
           </svg>
         </div>
-        <h1>Expense Tracker</h1>
+        <h1>ExpenseTracker</h1>
         <p className="login-subtitle">Track your expenses with voice input</p>
         <div className="login-button-wrapper">
           {isLoggingIn ? (
