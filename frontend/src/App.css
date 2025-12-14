@@ -327,6 +327,11 @@
   }
 
   .tab-content {
+    display: none;
+    flex-direction: column;
+  }
+
+  .tab-content.active {
     display: flex;
   }
 
