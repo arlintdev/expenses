@@ -83,8 +83,8 @@ If any information is missing or unclear, make reasonable assumptions based on c
             output_tokens = message.usage.output_tokens
 
             warning_message = None
-            if input_tokens > 1000 or output_tokens > 1000:
-                warning_message = f"Token limit exceeded: Input={input_tokens}/1000, Output={output_tokens}/1000"
+            if input_tokens > 5000 or output_tokens > 5000:
+                warning_message = f"Token limit exceeded: Input={input_tokens}/5000, Output={output_tokens}/5000"
                 print(f"⚠️  {warning_message}")
 
             # Extract JSON from response (handle markdown code blocks)
@@ -177,8 +177,8 @@ If any information is missing or unclear, make reasonable assumptions based on c
             input_tokens = message.usage.input_tokens
             output_tokens = message.usage.output_tokens
 
-            if input_tokens > 1000 or output_tokens > 1000:
-                print(f"⚠️  Token limit warning (transcription): Input={input_tokens}/1000, Output={output_tokens}/1000")
+            if input_tokens > 5000 or output_tokens > 5000:
+                print(f"⚠️  Token limit warning (transcription): Input={input_tokens}/5000, Output={output_tokens}/5000")
 
             return transcription
 
@@ -266,8 +266,8 @@ If any information is missing or unclear, make reasonable assumptions based on c
             output_tokens = message.usage.output_tokens
 
             warning_message = None
-            if input_tokens > 1000 or output_tokens > 1000:
-                warning_message = f"Token limit exceeded: Input={input_tokens}/1000, Output={output_tokens}/1000"
+            if input_tokens > 5000 or output_tokens > 5000:
+                warning_message = f"Token limit exceeded: Input={input_tokens}/5000, Output={output_tokens}/5000"
                 print(f"⚠️  {warning_message}")
 
             # Extract JSON from response (handle markdown code blocks)
