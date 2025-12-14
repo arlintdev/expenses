@@ -59,23 +59,37 @@ class Expense(Base):
 
 def run_migrations():
     """
-    Run database migrations to update schema without losing data.
+    Run Alembic migrations automatically on startup.
     """
-    from sqlalchemy import inspect, text
+    from alembic.config import Config
+    from alembic import command
+    import os
+    from pathlib import Path
 
-    inspector = inspect(engine)
+    try:
+        print("🔄 Running database migrations...")
 
-    # Check if users table exists
-    if 'users' in inspector.get_table_names():
-        columns = [col['name'] for col in inspector.get_columns('users')]
+        # Get the directory containing this file
+        backend_dir = Path(__file__).parent
 
-        # Add expense_context column if it doesn't exist
-        if 'expense_context' not in columns:
-            print("⚙️  Running migration: Adding expense_context column to users table")
-            with engine.connect() as conn:
-                conn.execute(text('ALTER TABLE users ADD COLUMN expense_context VARCHAR'))
-                conn.commit()
-            print("✅ Migration completed: expense_context column added")
+        # Create Alembic config
+        alembic_cfg = Config(str(backend_dir / "alembic.ini"))
+
+        # Set the script location
+        alembic_cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+
+        # Set the database URL from environment or default
+        database_url = os.getenv("DATABASE_URL", "sqlite:///./expenses.db")
+        alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+
+        # Run migrations to head
+        command.upgrade(alembic_cfg, "head")
+
+        print("✅ Database migrations completed successfully")
+    except Exception as e:
+        print(f"⚠️  Migration warning: {str(e)}")
+        # Don't fail startup if migrations have issues
+        # This allows the app to start even if migrations fail
 
 def init_db():
     Base.metadata.create_all(bind=engine)
