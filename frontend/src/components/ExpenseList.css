@@ -95,6 +95,89 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.metrics-summary {
+  display: none;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow-x: auto;
+  justify-content: space-between;
+}
+
+@media (min-width: 768px) {
+  .metrics-summary {
+    display: flex;
+  }
+}
+
+.summary-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+  flex: 1;
+}
+
+.summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: white;
+}
+
+.card-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-label {
+  font-size: 0.7rem;
+  color: #666;
+  margin-bottom: 0.1rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.card-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  white-space: nowrap;
+}
+
+.metric-label {
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 0.25rem;
+  font-weight: 500;
+}
+
+.metric-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
 .export-csv-button {
   padding: 0.5rem 1rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -970,6 +1053,41 @@
 [data-theme="dark"] .summary {
   background: #1a1a1a;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .metrics-summary {
+  background: #111111;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .summary-card {
+  background: #1a1a1a;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .summary-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .card-label {
+  color: #999999;
+}
+
+[data-theme="dark"] .card-value {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .metric-card {
+  background: linear-gradient(135deg, #2a2a2a 0%, #1a1a2a 100%);
+  border-left-color: #667eea;
+}
+
+[data-theme="dark"] .metric-label {
+  color: #999;
+}
+
+[data-theme="dark"] .metric-value {
+  color: #e0e0e0;
 }
 
 [data-theme="dark"] .empty-state {

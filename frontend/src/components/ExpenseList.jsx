@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { MdDescription, MdPerson, MdBuild, MdAccessTime, MdLocalOffer, MdCheckBox, MdDeleteOutline } from 'react-icons/md';
+import { MdDescription, MdPerson, MdBuild, MdAccessTime, MdLocalOffer, MdCheckBox, MdDeleteOutline, MdAttachMoney, MdListAlt, MdTrendingUp, MdArrowUpward, MdArrowDownward } from 'react-icons/md';
 import TagInput from './TagInput';
 import DeleteConfirmation from './DeleteConfirmation';
 import './ExpenseList.css';
@@ -283,6 +283,11 @@ function ExpenseList({
   };
 
   const totalAmount = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const expenseCount = filteredExpenses.length;
+  const averageAmount = expenseCount > 0 ? totalAmount / expenseCount : 0;
+  const maxAmount = expenseCount > 0 ? Math.max(...filteredExpenses.map(e => e.amount)) : 0;
+  const minAmount = expenseCount > 0 ? Math.min(...filteredExpenses.map(e => e.amount)) : 0;
+  const totalHours = filteredExpenses.reduce((sum, expense) => sum + (expense.hours || 0), 0);
 
   const handleClearFilters = () => {
     setSelectedMonth('all');
@@ -298,6 +303,71 @@ function ExpenseList({
 
   return (
     <div className="expense-list">
+      {/* Metrics Summary */}
+      <div className="metrics-summary">
+        <div className="summary-card">
+          <div className="card-icon" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+            <MdAttachMoney size={28} />
+          </div>
+          <div className="card-content">
+            <div className="card-label">Total</div>
+            <div className="card-value">{formatAmount(totalAmount)}</div>
+          </div>
+        </div>
+
+        <div className="summary-card">
+          <div className="card-icon" style={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
+            <MdListAlt size={28} />
+          </div>
+          <div className="card-content">
+            <div className="card-label">Count</div>
+            <div className="card-value">{expenseCount}</div>
+          </div>
+        </div>
+
+        <div className="summary-card">
+          <div className="card-icon" style={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }}>
+            <MdTrendingUp size={28} />
+          </div>
+          <div className="card-content">
+            <div className="card-label">Average</div>
+            <div className="card-value">{formatAmount(averageAmount)}</div>
+          </div>
+        </div>
+
+        <div className="summary-card">
+          <div className="card-icon" style={{ background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' }}>
+            <MdArrowUpward size={28} />
+          </div>
+          <div className="card-content">
+            <div className="card-label">Highest</div>
+            <div className="card-value">{formatAmount(maxAmount)}</div>
+          </div>
+        </div>
+
+        <div className="summary-card">
+          <div className="card-icon" style={{ background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)' }}>
+            <MdArrowDownward size={28} />
+          </div>
+          <div className="card-content">
+            <div className="card-label">Lowest</div>
+            <div className="card-value">{formatAmount(minAmount)}</div>
+          </div>
+        </div>
+
+        {totalHours > 0 && (
+          <div className="summary-card">
+            <div className="card-icon" style={{ background: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)' }}>
+              <MdAccessTime size={28} />
+            </div>
+            <div className="card-content">
+              <div className="card-label">Hours</div>
+              <div className="card-value">{totalHours.toFixed(1)}</div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Compact Toolbar */}
       <div className="expense-toolbar">
         <button
@@ -456,12 +526,6 @@ function ExpenseList({
           </div>
         </div>
       )}
-
-      <div className="summary">
-        <div className="total-amount">
-          Total: {formatAmount(totalAmount)}
-        </div>
-      </div>
 
       {filteredExpenses.length === 0 && !loading ? (
         <div className="empty-state">
