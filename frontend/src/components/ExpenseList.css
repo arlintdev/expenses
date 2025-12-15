@@ -1232,3 +1232,201 @@
 [data-theme="dark"] .expenses-table tr.recently-added:hover {
   background: #203020;
 }
+
+.select-column {
+  width: 50px;
+  text-align: center;
+}
+
+.expense-checkbox {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+}
+
+.select-all-checkbox {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+}
+
+.expenses-table tr.selected {
+  background: #e8f4f8 !important;
+}
+
+[data-theme="dark"] .expenses-table tr.selected {
+  background: #1a3a3a !important;
+}
+
+.bulk-select-button,
+.cancel-select-button,
+.bulk-delete-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: white;
+  color: #1a1a1a;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.bulk-select-button:hover {
+  background: #f5f5f5;
+  border-color: #667eea;
+}
+
+.cancel-select-button {
+  background: #f5f5f5;
+  border-color: #d0d0d0;
+}
+
+.cancel-select-button:hover {
+  background: #e0e0e0;
+}
+
+.bulk-delete-button {
+  background: #fee;
+  border-color: #fcc;
+  color: #c33;
+}
+
+.bulk-delete-button:hover {
+  background: #fdd;
+  border-color: #f99;
+}
+
+.bulk-delete-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.selected-count {
+  padding: 0.5rem 1rem;
+  color: #666;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .bulk-select-button,
+[data-theme="dark"] .cancel-select-button,
+[data-theme="dark"] .bulk-delete-button {
+  background: #2a2a2a;
+  color: #e0e0e0;
+  border-color: #404040;
+}
+
+[data-theme="dark"] .bulk-select-button:hover {
+  background: #333;
+  border-color: #667eea;
+}
+
+[data-theme="dark"] .cancel-select-button:hover {
+  background: #3a3a3a;
+}
+
+[data-theme="dark"] .bulk-delete-button {
+  background: #3a2020;
+  border-color: #5a3030;
+  color: #ff6666;
+}
+
+[data-theme="dark"] .bulk-delete-button:hover {
+  background: #4a2a2a;
+  border-color: #7a4040;
+}
+
+[data-theme="dark"] .selected-count {
+  color: #aaa;
+}
+
+.bulk-delete-confirmation-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.bulk-delete-confirmation-modal {
+  background: white;
+  border-radius: 8px;
+  padding: 2rem;
+  max-width: 400px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.bulk-delete-confirmation-modal h3 {
+  margin: 0 0 0.5rem 0;
+  color: #1a1a1a;
+  font-size: 1.2rem;
+}
+
+.bulk-delete-confirmation-modal p {
+  margin: 0 0 1.5rem 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.confirmation-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.confirmation-actions button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.confirmation-actions .cancel-button {
+  background: #f0f0f0;
+  color: #1a1a1a;
+}
+
+.confirmation-actions .cancel-button:hover {
+  background: #e0e0e0;
+}
+
+.confirmation-actions .delete-button {
+  background: #ef4444;
+  color: white;
+  font-weight: 600;
+}
+
+.confirmation-actions .delete-button:hover {
+  background: #dc2626;
+}
+
+[data-theme="dark"] .bulk-delete-confirmation-modal {
+  background: #1a1a1a;
+}
+
+[data-theme="dark"] .bulk-delete-confirmation-modal h3 {
+  color: #e0e0e0;
+}
+
+[data-theme="dark"] .bulk-delete-confirmation-modal p {
+  color: #aaa;
+}
+
+[data-theme="dark"] .confirmation-actions .cancel-button {
+  background: #2a2a2a;
+  color: #e0e0e0;
+}
+
+[data-theme="dark"] .confirmation-actions .cancel-button:hover {
+  background: #3a3a3a;
+}

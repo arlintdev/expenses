@@ -688,6 +688,39 @@ async def delete_expense(
     await db.commit()
     return None
 
+@app.post("/api/expenses/bulk/delete")
+async def bulk_delete_expenses(
+    request_data: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Delete multiple expenses by IDs (only if they belong to current user).
+    """
+    expense_ids = request_data.get("expense_ids", [])
+
+    if not expense_ids:
+        raise HTTPException(status_code=400, detail="No expense IDs provided")
+
+    # Verify all expenses belong to current user
+    result = await db.execute(
+        select(Expense).filter(
+            Expense.id.in_(expense_ids),
+            Expense.user_id == current_user.id
+        )
+    )
+    expenses = result.scalars().all()
+
+    if len(expenses) != len(expense_ids):
+        raise HTTPException(status_code=403, detail="Some expenses not found or don't belong to you")
+
+    # Delete all expenses
+    for expense in expenses:
+        await db.delete(expense)
+
+    await db.commit()
+    return {"deleted_count": len(expenses)}
+
 # Tag management endpoints
 @app.post("/api/tags", status_code=201)
 async def create_tag(

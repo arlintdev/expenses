@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { MdDescription, MdPerson, MdBuild, MdAccessTime, MdLocalOffer } from 'react-icons/md';
+import { MdDescription, MdPerson, MdBuild, MdAccessTime, MdLocalOffer, MdCheckBox, MdDeleteOutline } from 'react-icons/md';
 import TagInput from './TagInput';
 import DeleteConfirmation from './DeleteConfirmation';
 import './ExpenseList.css';
@@ -32,38 +32,14 @@ function ExpenseList({
   const [sortBy, setSortBy] = useState('date_desc'); // date_desc, date_asc, created_desc, created_asc
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState(null); // { id, description, amount }
-  const observer = useRef();
+  const [bulkSelectMode, setBulkSelectMode] = useState(false);
+  const [selectedExpenses, setSelectedExpenses] = useState(new Set());
+  const [bulkDeleteConfirmation, setBulkDeleteConfirmation] = useState(false);
   const scrollContainerRef = useRef();
-  const lastExpenseRef = useCallback(node => {
-    if (loading) return;
-    if (observer.current) observer.current.disconnect();
-    observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore) {
-        setPage(prevPage => prevPage + 1);
-      }
-    });
-    if (node) observer.current.observe(node);
-  }, [loading, hasMore]);
-
-  useEffect(() => {
-    setExpenses([]);
-    setPage(0);
-    setHasMore(true);
-  }, [selectedMonth, selectedYear]);
 
   useEffect(() => {
     fetchExpenses();
-  }, [page, selectedMonth, selectedYear]);
-
-  // Refresh when refreshTrigger changes
-  useEffect(() => {
-    if (refreshTrigger > 0) {
-      setExpenses([]);
-      setPage(0);
-      setHasMore(true);
-      fetchExpenses();
-    }
-  }, [refreshTrigger]);
+  }, [selectedMonth, selectedYear, selectedTags, refreshTrigger]);
 
   useEffect(() => {
     // Update tags whenever expenses change
@@ -85,10 +61,14 @@ function ExpenseList({
 
     try {
       setLoading(true);
-      let url = `${apiUrl}/api/expenses?skip=${page * 20}&limit=20`;
+      let url = `${apiUrl}/api/expenses?skip=0&limit=10000`;
 
       if (selectedMonth !== 'all') {
         url += `&month=${selectedMonth}&year=${selectedYear}`;
+      }
+
+      if (selectedTags.length > 0) {
+        url += `&tags=${selectedTags.join(',')}`;
       }
 
       const response = await fetch(url, {
@@ -97,12 +77,7 @@ function ExpenseList({
       if (!response.ok) throw new Error('Failed to fetch expenses');
 
       const data = await response.json();
-
-      if (data.length === 0) {
-        setHasMore(false);
-      } else {
-        setExpenses(prev => page === 0 ? data : [...prev, ...data]);
-      }
+      setExpenses(data);
     } catch (error) {
       console.error('Error fetching expenses:', error);
     } finally {
@@ -123,6 +98,53 @@ function ExpenseList({
       console.error('Error deleting expense:', error);
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const toggleBulkSelect = (expenseId) => {
+    const newSelected = new Set(selectedExpenses);
+    if (newSelected.has(expenseId)) {
+      newSelected.delete(expenseId);
+    } else {
+      newSelected.add(expenseId);
+    }
+    setSelectedExpenses(newSelected);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedExpenses.size === filteredExpenses.length && selectedExpenses.size > 0) {
+      setSelectedExpenses(new Set());
+    } else {
+      setSelectedExpenses(new Set(filteredExpenses.map(e => e.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedExpenses.size === 0) return;
+
+    try {
+      const response = await fetch(`${apiUrl}/api/expenses/bulk/delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({
+          expense_ids: Array.from(selectedExpenses)
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete expenses');
+      }
+
+      const deletedIds = Array.from(selectedExpenses);
+      setExpenses(expenses.filter(e => !deletedIds.includes(e.id)));
+      setSelectedExpenses(new Set());
+      setBulkSelectMode(false);
+      setBulkDeleteConfirmation(false);
+    } catch (error) {
+      console.error('Error bulk deleting expenses:', error);
     }
   };
 
@@ -221,19 +243,8 @@ function ExpenseList({
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
-  // Client-side filtering based on category and search text
+  // Client-side search text filtering only (backend handles date and tag filtering)
   const filteredExpenses = expenses.filter(expense => {
-    // Tag filter - check if expense has at least one of the selected tags
-    if (selectedTags.length > 0) {
-      const expenseTags = expense.tags || [];
-      const hasMatchingTag = selectedTags.some(selectedTag =>
-        expenseTags.includes(selectedTag)
-      );
-      if (!hasMatchingTag) {
-        return false;
-      }
-    }
-
     // Search text filter (searches across description, recipient, materials, and tags)
     if (searchText.trim()) {
       const searchLower = searchText.toLowerCase();
@@ -337,7 +348,55 @@ function ExpenseList({
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
         </button>
+
+        {!bulkSelectMode && (
+          <button className="bulk-select-button" onClick={() => setBulkSelectMode(true)} title="Bulk select">
+            <MdCheckBox size={20} />
+            Select
+          </button>
+        )}
+
+        {bulkSelectMode && (
+          <>
+            <button
+              className="cancel-select-button"
+              onClick={() => {
+                setBulkSelectMode(false);
+                setSelectedExpenses(new Set());
+              }}
+              title="Cancel bulk select"
+            >
+              Cancel
+            </button>
+            {selectedExpenses.size > 0 && (
+              <>
+                <span className="selected-count">{selectedExpenses.size} selected</span>
+                <button
+                  className="bulk-delete-button"
+                  onClick={() => setBulkDeleteConfirmation(true)}
+                  title="Delete selected"
+                >
+                  <MdDeleteOutline size={20} />
+                  Delete ({selectedExpenses.size})
+                </button>
+              </>
+            )}
+          </>
+        )}
       </div>
+
+      {bulkDeleteConfirmation && (
+        <div className="bulk-delete-confirmation-overlay" onClick={() => setBulkDeleteConfirmation(false)}>
+          <div className="bulk-delete-confirmation-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Delete {selectedExpenses.size} expense{selectedExpenses.size !== 1 ? 's' : ''}?</h3>
+            <p>This action cannot be undone.</p>
+            <div className="confirmation-actions">
+              <button onClick={() => setBulkDeleteConfirmation(false)} className="cancel-button">Cancel</button>
+              <button onClick={handleBulkDelete} className="delete-button">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters Modal */}
       {showFiltersModal && (
@@ -416,6 +475,16 @@ function ExpenseList({
             <table className="expenses-table">
               <thead>
                 <tr>
+                  {bulkSelectMode && (
+                    <th className="select-column">
+                      <input
+                        type="checkbox"
+                        checked={selectedExpenses.size === filteredExpenses.length && filteredExpenses.length > 0}
+                        onChange={toggleSelectAll}
+                        className="select-all-checkbox"
+                      />
+                    </th>
+                  )}
                   <th>Date</th>
                   <th>Description</th>
                   <th>Recipient</th>
@@ -428,15 +497,23 @@ function ExpenseList({
               </thead>
               <tbody>
                 {filteredExpenses.map((expense, index) => {
-                  const isLast = index === expenses.length - 1;
                   const isEditing = false; // Inline editing disabled - use dedicated edit page
 
                   return (
                     <tr
                       key={expense.id}
-                      ref={isLast ? lastExpenseRef : null}
-                      className={`${isEditing ? 'editing' : ''} ${isRecentlyAdded(expense) ? 'recently-added' : ''}`}
+                      className={`${isEditing ? 'editing' : ''} ${isRecentlyAdded(expense) ? 'recently-added' : ''} ${selectedExpenses.has(expense.id) ? 'selected' : ''}`}
                     >
+                      {bulkSelectMode && (
+                        <td className="select-column">
+                          <input
+                            type="checkbox"
+                            checked={selectedExpenses.has(expense.id)}
+                            onChange={() => toggleBulkSelect(expense.id)}
+                            className="expense-checkbox"
+                          />
+                        </td>
+                      )}
                       <td className="table-date">
                         {isEditing ? (
                           <input
@@ -575,12 +652,9 @@ function ExpenseList({
 
           {/* Mobile Card View */}
           {filteredExpenses.map((expense, index) => {
-            const isLast = index === expenses.length - 1;
-
             return (
               <div
                 key={expense.id}
-                ref={isLast ? lastExpenseRef : null}
                 className={`expense-card ${isRecentlyAdded(expense) ? 'recently-added' : ''}`}
               >
                 {/* Header with date and three-dot menu */}
