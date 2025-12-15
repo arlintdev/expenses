@@ -893,3 +893,241 @@
   margin-right: 0.35rem;
   margin-bottom: 0.35rem;
 }
+
+/* Dark Mode Support */
+[data-theme="dark"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+[data-theme="dark"] .modal-content {
+  background: #1a1a1a;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .modal-close {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .modal-close:hover {
+  background: #2a2a2a;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .modal-content h2 {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .modal-subtitle {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .modal-transcription {
+  background: #2a2a2a;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .modal-transcription p {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .modal-error {
+  background: #2a1a1a;
+  color: #ff6b6b;
+  border: 1px solid #404040;
+}
+
+[data-theme="dark"] .stop-button {
+  background: #2a1a1a;
+  color: #ff6b6b;
+  border: 2px solid #404040;
+}
+
+[data-theme="dark"] .stop-button:hover {
+  background: #3a1a1a;
+  border-color: #505050;
+}
+
+[data-theme="dark"] .processing-indicator {
+  color: #667eea;
+}
+
+[data-theme="dark"] .modal-hint {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .mode-selection {
+  background: #1a1a1a;
+}
+
+[data-theme="dark"] .mode-button {
+  background: #2a2a2a;
+  border: 2px solid #404040;
+  color: #cccccc;
+}
+
+[data-theme="dark"] .mode-button:hover {
+  border-color: #667eea;
+  background: #1a1a2a;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+[data-theme="dark"] .mode-button span {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .mode-description {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .modal-back {
+  color: #667eea;
+}
+
+[data-theme="dark"] .modal-back:hover {
+  color: #764ba2;
+}
+
+[data-theme="dark"] .image-preview-container {
+  background: #2a2a2a;
+}
+
+[data-theme="dark"] .processing-indicator p {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .processing-indicator .spinner {
+  border: 4px solid rgba(102, 126, 234, 0.2);
+  border-top-color: #667eea;
+}
+
+[data-theme="dark"] .drag-overlay {
+  background: rgba(102, 126, 234, 0.1);
+}
+
+[data-theme="dark"] .drag-overlay p {
+  color: #667eea;
+}
+
+[data-theme="dark"] .quick-actions-hint {
+  background: #1a1a2a;
+  border: 1px solid #404040;
+}
+
+[data-theme="dark"] .quick-actions-hint p {
+  color: #667eea;
+}
+
+[data-theme="dark"] .quick-actions-hint li {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .quick-actions-hint li::before {
+  color: #667eea;
+}
+
+[data-theme="dark"] .quick-actions-hint kbd {
+  background: #2a2a2a;
+  border: 1px solid #404040;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .bulk-empty-state {
+  border: 2px dashed #404040;
+  background: #2a2a2a;
+}
+
+[data-theme="dark"] .bulk-empty-state svg {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .bulk-empty-state p {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .bulk-stats {
+  background: #1a1a2a;
+  border: 1px solid #404040;
+}
+
+[data-theme="dark"] .bulk-stats p {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .progress-bar {
+  background: #404040;
+}
+
+[data-theme="dark"] .file-list {
+  background: #2a2a2a;
+}
+
+[data-theme="dark"] .file-item {
+  background: #1a1a1a;
+  border: 1px solid #404040;
+}
+
+[data-theme="dark"] .file-item.success {
+  border-color: #22c55e;
+  background: #1a2e1a;
+}
+
+[data-theme="dark"] .file-item.failure {
+  border-color: #ef4444;
+  background: #2a1a1a;
+}
+
+[data-theme="dark"] .file-name {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .bulk-actions button:first-child {
+  background: #2a2a2a;
+  color: #cccccc;
+}
+
+[data-theme="dark"] .bulk-actions button:first-child:hover {
+  background: #3a3a3a;
+}
+
+[data-theme="dark"] .confirmation-modal {
+  background: #1a1a1a;
+}
+
+[data-theme="dark"] .confirmation-field label {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .confirmation-value {
+  background: #2a2a2a;
+  color: #ffffff;
+  border: 1px solid #404040;
+}
+
+[data-theme="dark"] .confirmation-value.amount {
+  color: #667eea;
+}
+
+[data-theme="dark"] .confirmation-input {
+  background: #2a2a2a;
+  color: #ffffff;
+  border: 2px solid #404040;
+}
+
+[data-theme="dark"] .confirmation-input:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+[data-theme="dark"] .confirmation-actions {
+  border-top: 1px solid #404040;
+}
+
+[data-theme="dark"] .confirmation-actions .cancel-button {
+  background: #2a2a2a;
+  color: #cccccc;
+}
+
+[data-theme="dark"] .confirmation-actions .cancel-button:hover {
+  background: #3a3a3a;
+}

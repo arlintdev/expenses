@@ -4,6 +4,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google'
 import './index.css'
 import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 
 // Use relative URL when in production (served from same origin)
 // Use VITE_API_URL for development
@@ -70,7 +71,9 @@ function Root() {
   return (
     <GoogleOAuthProvider clientId={config.googleClientId}>
       <AuthProvider>
-        <App />
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
       </AuthProvider>
     </GoogleOAuthProvider>
   );

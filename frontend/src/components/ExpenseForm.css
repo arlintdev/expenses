@@ -213,3 +213,62 @@
     font-size: 2rem;
   }
 }
+
+/* Dark Mode Support */
+[data-theme="dark"] .expense-form {
+  background: #1a1a1a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .form-header h2 {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .form-header p {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .status-badge.recording {
+  background-color: #2a1a1a;
+  color: #ff6b6b;
+}
+
+[data-theme="dark"] .status-badge.processing {
+  background-color: #1a1a2a;
+  color: #667eea;
+}
+
+[data-theme="dark"] .transcription-display {
+  background-color: #2a2a2a;
+}
+
+[data-theme="dark"] .transcription-display h3 {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .transcription-display p {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .error-message {
+  background-color: #2a1a1a;
+  border: 1px solid #404040;
+  color: #ff6b6b;
+}
+
+[data-theme="dark"] .error-message button {
+  color: #ff6b6b;
+}
+
+[data-theme="dark"] .instructions {
+  background-color: #2a2a2a;
+  border-left: 4px solid #667eea;
+}
+
+[data-theme="dark"] .instructions h3 {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .instructions p {
+  color: #cccccc;
+}

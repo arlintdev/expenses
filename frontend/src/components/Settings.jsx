@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import './Settings.css';
 
 function Settings({ apiUrl }) {
   const { getAuthHeader } = useAuth();
+  const { theme, changeTheme } = useTheme();
   const [expenseContext, setExpenseContext] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -83,6 +85,67 @@ function Settings({ apiUrl }) {
       <div className="settings-header">
         <h2>Settings</h2>
         <p className="settings-subtitle">Customize how expenses are processed</p>
+      </div>
+
+      <div className="settings-section">
+        <label className="settings-label">
+          Theme
+        </label>
+        <p className="settings-description">
+          Choose your preferred theme or let it follow your system setting
+        </p>
+        <div className="theme-switcher">
+          <div
+            className={`theme-card ${theme === 'light' ? 'active' : ''}`}
+            onClick={() => changeTheme('light')}
+          >
+            <div className="theme-preview light-preview">
+              <div className="preview-header"></div>
+              <div className="preview-content">
+                <div className="preview-line"></div>
+                <div className="preview-line short"></div>
+              </div>
+            </div>
+            <span className="theme-label">Light</span>
+          </div>
+
+          <div
+            className={`theme-card ${theme === 'dark' ? 'active' : ''}`}
+            onClick={() => changeTheme('dark')}
+          >
+            <div className="theme-preview dark-preview">
+              <div className="preview-header"></div>
+              <div className="preview-content">
+                <div className="preview-line"></div>
+                <div className="preview-line short"></div>
+              </div>
+            </div>
+            <span className="theme-label">Dark</span>
+          </div>
+
+          <div
+            className={`theme-card ${theme === 'system' ? 'active' : ''}`}
+            onClick={() => changeTheme('system')}
+          >
+            <div className="theme-preview system-preview">
+              <div className="preview-half light-half">
+                <div className="preview-header"></div>
+                <div className="preview-content">
+                  <div className="preview-line"></div>
+                  <div className="preview-line short"></div>
+                </div>
+              </div>
+              <div className="preview-half dark-half">
+                <div className="preview-header"></div>
+                <div className="preview-content">
+                  <div className="preview-line"></div>
+                  <div className="preview-line short"></div>
+                </div>
+              </div>
+            </div>
+            <span className="theme-label">Auto</span>
+          </div>
+        </div>
       </div>
 
       <div className="settings-section">

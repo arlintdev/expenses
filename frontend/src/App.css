@@ -499,3 +499,117 @@
 .sidebar-nav a {
   text-decoration: none;
 }
+
+/* Dark Mode Support */
+[data-theme="dark"] .desktop-sidebar {
+  background: #1a1a1a;
+  border-right-color: #404040;
+}
+
+[data-theme="dark"] .sidebar-header {
+  border-bottom-color: #404040;
+}
+
+[data-theme="dark"] .sidebar-header h2 {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .nav-link {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .nav-link:hover {
+  background: #2a2a2a;
+  color: #667eea;
+}
+
+[data-theme="dark"] .nav-link.active {
+  background: rgba(102, 126, 234, 0.2);
+  color: #667eea;
+}
+
+[data-theme="dark"] .sidebar-footer {
+  border-top-color: #404040;
+}
+
+[data-theme="dark"] .user-info {
+  background: #2a2a2a;
+}
+
+[data-theme="dark"] .user-name {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .user-email {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .logout-button-sidebar {
+  background: rgba(220, 53, 69, 0.2);
+  border-color: rgba(220, 53, 69, 0.3);
+  color: #f44336;
+}
+
+[data-theme="dark"] .logout-button-sidebar:hover {
+  background: rgba(220, 53, 69, 0.3);
+  border-color: rgba(220, 53, 69, 0.4);
+}
+
+[data-theme="dark"] .profile-menu {
+  background: #1a1a1a;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .profile-menu-header {
+  background: rgba(102, 126, 234, 0.2);
+}
+
+[data-theme="dark"] .profile-menu-name {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .profile-menu-email {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .profile-menu-divider {
+  background: #404040;
+}
+
+[data-theme="dark"] .profile-menu-item {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .profile-menu-item svg {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .profile-menu-item:hover {
+  background: #2a2a2a;
+}
+
+[data-theme="dark"] .profile-menu-item.logout {
+  color: #f44336;
+}
+
+[data-theme="dark"] .profile-menu-item.logout svg {
+  color: #f44336;
+}
+
+[data-theme="dark"] .profile-menu-item.logout:hover {
+  background: rgba(220, 53, 69, 0.1);
+}
+
+[data-theme="dark"] .error-banner {
+  background: rgba(220, 53, 69, 0.2);
+  border-color: rgba(220, 53, 69, 0.3);
+  color: #f44336;
+}
+
+[data-theme="dark"] .export-view h2 {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .export-view p {
+  color: #cccccc;
+}

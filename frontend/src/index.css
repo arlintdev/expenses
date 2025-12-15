@@ -31,3 +31,14 @@ body {
 button {
   font-family: inherit;
 }
+
+/* Dark Mode Support */
+[data-theme="dark"]:root {
+  color: #ffffff;
+  background-color: #111111;
+}
+
+[data-theme="dark"] body {
+  background-color: #111111;
+  color: #ffffff;
+}

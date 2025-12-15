@@ -92,3 +92,23 @@
 .bottom-nav a {
   text-decoration: none;
 }
+
+/* Dark Mode Support */
+[data-theme="dark"] .bottom-nav {
+  background: #1a1a1a;
+  border-top-color: #404040;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .nav-item {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .nav-item:hover,
+[data-theme="dark"] .nav-item.active {
+  color: #667eea;
+}
+
+[data-theme="dark"] .add-button {
+  border-color: #1a1a1a;
+}

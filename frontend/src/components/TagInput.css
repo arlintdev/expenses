@@ -155,3 +155,46 @@
     font-size: 13px;
   }
 }
+
+/* Dark Mode Support */
+[data-theme="dark"] .tag-input-wrapper {
+  border: 1px solid #404040;
+  background: #2a2a2a;
+}
+
+[data-theme="dark"] .tag-input-wrapper:focus-within {
+  border-color: #667eea;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+}
+
+[data-theme="dark"] .tag-chip {
+  background: #667eea;
+  color: white;
+}
+
+[data-theme="dark"] .tag-input {
+  background: transparent;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .tag-input::placeholder {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .tag-suggestions {
+  background: #1a1a1a;
+  border: 1px solid #404040;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .tag-suggestion-item {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .tag-suggestion-item:hover {
+  background: #2a2a2a;
+}
+
+[data-theme="dark"] .tag-suggestion-item:active {
+  background: #3a3a3a;
+}
