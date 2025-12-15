@@ -11,9 +11,11 @@ from sqlalchemy import select
 from models import User, get_db
 
 # JWT settings
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-this-in-production")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("JWT_SECRET_KEY environment variable is required")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_HOURS = 24  # Maximum session time: 24 hours
+ACCESS_TOKEN_EXPIRE_HOURS = 168  # Maximum session time: 7 days (168 hours)
 
 # Google OAuth
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
