@@ -1262,7 +1262,7 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
                   ></div>
                 </div>
 
-                {isProcessing && (
+                {isProcessing && processedFiles.length === 0 && (
                   <div className="processing-overlay">
                     <div className="loader-content">
                       <div className="spinner-dots">
@@ -1372,7 +1372,7 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
                   ></div>
                 </div>
 
-                {isProcessing && (
+                {isProcessing && processedFiles.length === 0 && (
                   <div className="processing-overlay">
                     <div className="loader-content">
                       <div className="spinner-dots">
@@ -1386,19 +1386,28 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
                 )}
 
                 <div className="file-list">
-                  {processedFiles.map((result, idx) => (
-                    <div key={idx}>
-                      <div className={`file-item ${result.success ? 'success' : 'failure'}`}>
-                        <span className="file-name">{result.file}</span>
-                        <span className="file-status">
-                          {result.success ? '✓' : '✗'}
-                        </span>
+                  {processedFiles.map((result, idx) => {
+                    const truncatedDesc = result.description
+                      ? result.description.substring(0, 20) + (result.description.length > 20 ? '...' : '')
+                      : 'N/A';
+                    return (
+                      <div key={idx}>
+                        <div className={`file-item ${result.success ? 'success' : 'failure'}`}>
+                          <div className="file-name-column">
+                            <span className="row-number">Row {result.rowNumber}</span>
+                            <span className="row-description">{truncatedDesc}</span>
+                            <span className="row-amount">${result.amount?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <span className="file-status">
+                            {result.success ? '✓' : '✗'}
+                          </span>
+                        </div>
+                        {result.error && !result.success && (
+                          <div className="file-error">{result.error}</div>
+                        )}
                       </div>
-                      {result.error && !result.success && (
-                        <div className="file-error">{result.error}</div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                   {selectedFiles.slice(processedFiles.length).map((file, idx) => (
                     <div key={idx + processedFiles.length} className="file-item pending">
                       <span className="file-name">{file.name}</span>

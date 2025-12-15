@@ -705,6 +705,40 @@
   flex: 1;
 }
 
+.file-name-column {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.row-number {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #666;
+  white-space: nowrap;
+  min-width: max-content;
+}
+
+.row-description {
+  font-size: 0.85rem;
+  color: #1a1a1a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.row-amount {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  white-space: nowrap;
+  min-width: max-content;
+}
+
 .file-status {
   font-size: 1rem;
   font-weight: bold;
@@ -1060,6 +1094,18 @@
 
 [data-theme="dark"] .file-list {
   background: #2a2a2a;
+}
+
+[data-theme="dark"] .row-number {
+  color: #999;
+}
+
+[data-theme="dark"] .row-description {
+  color: #e0e0e0;
+}
+
+[data-theme="dark"] .row-amount {
+  color: #e0e0e0;
 }
 
 [data-theme="dark"] .file-item {

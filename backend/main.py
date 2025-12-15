@@ -1080,23 +1080,29 @@ async def submit_csv(
 @app.post("/api/submit-csv-stream")
 async def submit_csv_stream(
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Process CSV file with streaming progress updates.
     Yields JSON lines with per-row results as they're processed.
     """
-    async def process_csv_stream():
-        try:
-            # Read CSV file
-            content = await file.read()
-            if not content:
-                yield json.dumps({"type": "error", "message": "CSV file is empty"}) + "\n"
-                return
+    # Extract user data and read file before streaming starts
+    user_id = current_user.id
+    user_context = current_user.expense_context
 
+    # Read file content immediately while request context is active
+    file_content = await file.read()
+    if not file_content:
+        return StreamingResponse(
+            (json.dumps({"type": "error", "message": "CSV file is empty"}) + "\n" for _ in [None]),
+            media_type="application/x-ndjson"
+        )
+
+    async def process_csv_stream():
+        stream_db = AsyncSessionLocal()
+        try:
             # Parse CSV
-            text_content = content.decode('utf-8')
+            text_content = file_content.decode('utf-8')
             csv_reader = csv.DictReader(io.StringIO(text_content))
 
             if csv_reader.fieldnames is None or len(csv_reader.fieldnames) == 0:
@@ -1104,14 +1110,13 @@ async def submit_csv_stream(
                 return
 
             # Get user's existing tags and context for processing
-            tag_result = await db.execute(
+            tag_result = await stream_db.execute(
                 select(Tag.name)
                 .join(Expense)
-                .filter(Expense.user_id == current_user.id)
+                .filter(Expense.user_id == user_id)
                 .distinct()
             )
             existing_tags = list(tag_result.scalars().all()) if tag_result.scalars().all() else []
-            user_context = current_user.expense_context
 
             # Send start signal
             yield json.dumps({"type": "start"}) + "\n"
@@ -1151,10 +1156,10 @@ async def submit_csv_stream(
                         hours=parsed_expense.get("hours"),
                         amount=parsed_expense["amount"],
                         date=parsed_expense.get("date") or datetime.utcnow(),
-                        user_id=current_user.id
+                        user_id=user_id
                     )
-                    db.add(db_expense)
-                    await db.flush()
+                    stream_db.add(db_expense)
+                    await stream_db.flush()
 
                     # Create tags if provided
                     if parsed_expense.get("tags"):
@@ -1164,10 +1169,10 @@ async def submit_csv_stream(
                                     name=tag_name.strip(),
                                     expense_id=db_expense.id
                                 )
-                                db.add(db_tag)
+                                stream_db.add(db_tag)
 
-                    await db.flush()
-                    await db.commit()
+                    await stream_db.flush()
+                    await stream_db.commit()
 
                     yield json.dumps({
                         "type": "row",
@@ -1204,8 +1209,10 @@ async def submit_csv_stream(
             }) + "\n"
 
         except Exception as e:
-            logger.error("Error in CSV stream processing", error=str(e), user_id=current_user.id)
+            logger.error("Error in CSV stream processing", error=str(e), user_id=user_id)
             yield json.dumps({"type": "error", "message": f"Processing error: {str(e)}"}) + "\n"
+        finally:
+            await stream_db.close()
 
     return StreamingResponse(
         process_csv_stream(),
