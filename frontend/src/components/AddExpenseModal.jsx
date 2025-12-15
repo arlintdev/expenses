@@ -25,6 +25,7 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
   const finalTranscriptRef = useRef('');
   const fileInputRef = useRef(null);
   const bulkFileInputRef = useRef(null);
+  const csvFileInputRef = useRef(null);
 
   // Reset when modal closes
   useEffect(() => {
@@ -45,10 +46,15 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
       setTimeout(() => {
         fileInputRef.current?.click();
       }, 100);
-    } else if (mode === 'bulk' && selectedFiles.length === 0 && !isProcessing) {
-      // Trigger bulk file picker
+    } else if (mode === 'bulk-images' && selectedFiles.length === 0 && !isProcessing) {
+      // Trigger bulk images file picker
       setTimeout(() => {
         bulkFileInputRef.current?.click();
+      }, 100);
+    } else if (mode === 'bulk-csv' && selectedFiles.length === 0 && !isProcessing) {
+      // Trigger CSV file picker
+      setTimeout(() => {
+        csvFileInputRef.current?.click();
       }, 100);
     }
   }, [mode]);
@@ -483,21 +489,12 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
 
     if (files.length === 0) return;
 
-    // Check if it's a CSV file
-    const csvFiles = files.filter(file => file.name.endsWith('.csv'));
-    if (csvFiles.length > 0) {
-      const csvFile = csvFiles[0];
-      setSelectedFiles([csvFile]);
-      await processCsvUpload(csvFile);
-      return;
-    }
-
     // Filter and validate images
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
     const validFiles = imageFiles.filter(file => file.size <= 15 * 1024 * 1024);
 
     if (validFiles.length === 0) {
-      setError('No valid files selected. Please select image files under 15MB each or a CSV file.');
+      setError('No valid images selected. Please select image files under 15MB each.');
       return;
     }
 
@@ -511,15 +508,40 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
     await processBulkUpload(validFiles);
   };
 
+  const handleCsvFileSelect = async (event) => {
+    const files = Array.from(event.target.files || []);
+
+    if (files.length === 0) return;
+
+    // Filter CSV files
+    const csvFiles = files.filter(file => file.name.endsWith('.csv'));
+
+    if (csvFiles.length === 0) {
+      setError('No CSV files selected.');
+      return;
+    }
+
+    if (csvFiles.length > 1) {
+      setError('Please select only one CSV file at a time.');
+      return;
+    }
+
+    setError(null);
+    setSelectedFiles([csvFiles[0]]);
+    await processCsvUpload(csvFiles[0]);
+  };
+
   const processCsvUpload = async (csvFile) => {
     setIsProcessing(true);
     setError(null);
+    setBulkProgress({ current: 0, total: 0, successes: 0, failures: 0 });
+    setProcessedFiles([]);
 
     try {
       const formData = new FormData();
       formData.append('file', csvFile);
 
-      const response = await fetch(`${apiUrl}/api/submit-csv`, {
+      const response = await fetch(`${apiUrl}/api/submit-csv-stream`, {
         method: 'POST',
         headers: getAuthHeader(),
         body: formData
@@ -530,30 +552,77 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
         throw new Error(errorData.detail || 'Failed to process CSV');
       }
 
-      const data = await response.json();
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      const processedResults = [];
+      let totalRows = 0;
+      let successCount = 0;
+      let failureCount = 0;
 
-      setBulkProgress({
-        current: data.total_rows,
-        total: data.total_rows,
-        successes: data.successful,
-        failures: data.failed
-      });
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      const results = data.results.map(result => ({
-        file: `Row ${result.row_number}`,
-        success: result.status === 'success',
-        error: result.error_message,
-        expense: result.expense
-      }));
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-      setProcessedFiles(results);
+        for (const line of lines) {
+          if (!line.trim()) continue;
 
-      if (data.successful > 0) {
-        onExpenseAdded();
-      }
+          try {
+            const event = JSON.parse(line);
 
-      if (data.failed > 0) {
-        setError(`${data.failed} rows failed to process. Check details below.`);
+            if (event.type === 'start') {
+              setBulkProgress({ current: 0, total: 0, successes: 0, failures: 0 });
+            } else if (event.type === 'row') {
+              const result = {
+                file: `Row ${event.row_number}`,
+                success: event.status === 'success',
+                error: event.error,
+                rowNumber: event.row_number,
+                description: event.description,
+                amount: event.amount
+              };
+              processedResults.push(result);
+              setProcessedFiles([...processedResults]);
+
+              if (event.status === 'success') {
+                successCount++;
+              } else {
+                failureCount++;
+              }
+
+              setBulkProgress(prev => ({
+                ...prev,
+                current: successCount + failureCount,
+                successes: successCount,
+                failures: failureCount
+              }));
+            } else if (event.type === 'complete') {
+              totalRows = event.total_rows;
+              setBulkProgress({
+                current: totalRows,
+                total: totalRows,
+                successes: event.successful,
+                failures: event.failed
+              });
+
+              if (event.successful > 0) {
+                onExpenseAdded();
+              }
+
+              if (event.failed > 0) {
+                setError(`${event.failed} rows failed to process. Check details below.`);
+              }
+            } else if (event.type === 'error') {
+              throw new Error(event.message);
+            }
+          } catch (parseErr) {
+            console.error('Error parsing streaming response:', parseErr);
+          }
+        }
       }
     } catch (err) {
       setError(err.message);
@@ -720,15 +789,27 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
               <p className="mode-description">Upload receipt</p>
             </button>
 
-            <button onClick={() => setMode('bulk')} className="mode-button mode-button-wide">
+            <button onClick={() => setMode('bulk-images')} className="mode-button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <span>Multiple Images</span>
+              <p className="mode-description">Bulk upload receipts</p>
+            </button>
+
+            <button onClick={() => setMode('bulk-csv')} className="mode-button">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                 <polyline points="14 2 14 8 20 8"></polyline>
-                <path d="M12 18v-6"></path>
-                <path d="M9 15l3 3 3-3"></path>
+                <path d="M12 13h4"></path>
+                <path d="M12 17h4"></path>
+                <path d="M8 13h.01"></path>
+                <path d="M8 17h.01"></path>
               </svg>
-              <span>Bulk Upload</span>
-              <p className="mode-description">Multiple receipts or CSV</p>
+              <span>CSV Upload</span>
+              <p className="mode-description">Bulk from spreadsheet</p>
             </button>
           </div>
 
@@ -1137,15 +1218,17 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
 
   // ==================== BULK UPLOAD MODE ====================
 
-  if (mode === 'bulk') {
+  // ==================== BULK IMAGES MODE ====================
+
+  if (mode === 'bulk-images') {
     return (
       <div className="modal-overlay" onClick={(e) => { if (!isProcessing) onClose(); }}>
         <div className="modal-content bulk-upload" onClick={(e) => e.stopPropagation()}>
           <button className="modal-close" onClick={onClose}>&times;</button>
           <button className="modal-back" onClick={handleBack}>← Back</button>
 
-          <h2>Bulk Upload</h2>
-          <p className="modal-subtitle">Upload multiple receipts or a CSV file</p>
+          <h2>Multiple Images</h2>
+          <p className="modal-subtitle">Upload multiple receipts at once</p>
 
           <div className="bulk-upload-section">
             {selectedFiles.length === 0 ? (
@@ -1157,7 +1240,7 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
                 </svg>
                 <p>No files selected</p>
                 <button onClick={() => bulkFileInputRef.current?.click()}>
-                  Choose Images or CSV
+                  Choose Images
                 </button>
               </div>
             ) : (
@@ -1230,7 +1313,7 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
             <input
               ref={bulkFileInputRef}
               type="file"
-              accept="image/*,.csv"
+              accept="image/*"
               multiple
               onChange={handleBulkFileSelect}
               style={{ display: 'none' }}
@@ -1238,7 +1321,116 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
           </div>
 
           <div className="modal-hint">
-            Select multiple images to process them all at once, or upload a CSV file
+            Select multiple images to process them all at once
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== BULK CSV MODE ====================
+
+  if (mode === 'bulk-csv') {
+    return (
+      <div className="modal-overlay" onClick={(e) => { if (!isProcessing) onClose(); }}>
+        <div className="modal-content bulk-upload" onClick={(e) => e.stopPropagation()}>
+          <button className="modal-close" onClick={onClose}>&times;</button>
+          <button className="modal-back" onClick={handleBack}>← Back</button>
+
+          <h2>CSV Upload</h2>
+          <p className="modal-subtitle">Upload expenses from spreadsheet</p>
+
+          <div className="bulk-upload-section">
+            {selectedFiles.length === 0 ? (
+              <div className="bulk-empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <p>No file selected</p>
+                <button onClick={() => csvFileInputRef.current?.click()}>
+                  Choose CSV File
+                </button>
+              </div>
+            ) : (
+              <div className="bulk-processing">
+                <div className="bulk-stats">
+                  <p>Processing {bulkProgress.current} of {bulkProgress.total}</p>
+                  <div className="stats-row">
+                    <span className="success">✓ {bulkProgress.successes} created</span>
+                    {bulkProgress.failures > 0 && (
+                      <span className="failure">✗ {bulkProgress.failures} failed</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="progress-bar">
+                  <div
+                    className="progress-fill"
+                    style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
+                  ></div>
+                </div>
+
+                {isProcessing && (
+                  <div className="processing-overlay">
+                    <div className="loader-content">
+                      <div className="spinner-dots">
+                        <div className="dot"></div>
+                        <div className="dot"></div>
+                        <div className="dot"></div>
+                      </div>
+                      <p>Processing...</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="file-list">
+                  {processedFiles.map((result, idx) => (
+                    <div key={idx}>
+                      <div className={`file-item ${result.success ? 'success' : 'failure'}`}>
+                        <span className="file-name">{result.file}</span>
+                        <span className="file-status">
+                          {result.success ? '✓' : '✗'}
+                        </span>
+                      </div>
+                      {result.error && !result.success && (
+                        <div className="file-error">{result.error}</div>
+                      )}
+                    </div>
+                  ))}
+                  {selectedFiles.slice(processedFiles.length).map((file, idx) => (
+                    <div key={idx + processedFiles.length} className="file-item pending">
+                      <span className="file-name">{file.name}</span>
+                      <span className="file-status">...</span>
+                    </div>
+                  ))}
+                </div>
+
+                {!isProcessing && (
+                  <div className="bulk-actions">
+                    <button onClick={() => { setSelectedFiles([]); setProcessedFiles([]); csvFileInputRef.current?.click(); }}>
+                      Upload Another
+                    </button>
+                    <button onClick={onClose} className="done-button">
+                      Done
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <input
+              ref={csvFileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleCsvFileSelect}
+              style={{ display: 'none' }}
+            />
+          </div>
+
+          <div className="modal-hint">
+            CSV columns will be interpreted as expense data (description, amount, recipient, date, tags, etc.)
           </div>
         </div>
       </div>

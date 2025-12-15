@@ -1,7 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
+import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, func
 from sqlalchemy.orm import joinedload
@@ -1075,6 +1076,142 @@ async def submit_csv(
         await db.rollback()
         logger.error("Error processing CSV", error=str(e), user_id=current_user.id)
         raise HTTPException(status_code=500, detail=f"Failed to process CSV: {str(e)}")
+
+@app.post("/api/submit-csv-stream")
+async def submit_csv_stream(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Process CSV file with streaming progress updates.
+    Yields JSON lines with per-row results as they're processed.
+    """
+    async def process_csv_stream():
+        try:
+            # Read CSV file
+            content = await file.read()
+            if not content:
+                yield json.dumps({"type": "error", "message": "CSV file is empty"}) + "\n"
+                return
+
+            # Parse CSV
+            text_content = content.decode('utf-8')
+            csv_reader = csv.DictReader(io.StringIO(text_content))
+
+            if csv_reader.fieldnames is None or len(csv_reader.fieldnames) == 0:
+                yield json.dumps({"type": "error", "message": "CSV file has no headers"}) + "\n"
+                return
+
+            # Get user's existing tags and context for processing
+            tag_result = await db.execute(
+                select(Tag.name)
+                .join(Expense)
+                .filter(Expense.user_id == current_user.id)
+                .distinct()
+            )
+            existing_tags = list(tag_result.scalars().all()) if tag_result.scalars().all() else []
+            user_context = current_user.expense_context
+
+            # Send start signal
+            yield json.dumps({"type": "start"}) + "\n"
+
+            successful = 0
+            failed = 0
+            row_number = 1
+
+            for row in csv_reader:
+                row_number += 1
+                try:
+                    # Format row data as text for Claude to parse
+                    row_text = ", ".join([f"{key}: {value}" for key, value in row.items() if value])
+
+                    if not row_text.strip():
+                        yield json.dumps({
+                            "type": "row",
+                            "row_number": row_number,
+                            "status": "error",
+                            "error": "Row is empty"
+                        }) + "\n"
+                        failed += 1
+                        continue
+
+                    # Parse the row using Claude
+                    parsed_expense, warning = claude_service.parse_expense_from_text(
+                        row_text,
+                        existing_tags,
+                        user_context
+                    )
+
+                    # Create expense in database
+                    db_expense = Expense(
+                        description=parsed_expense["description"],
+                        recipient=parsed_expense["recipient"],
+                        materials=parsed_expense.get("materials"),
+                        hours=parsed_expense.get("hours"),
+                        amount=parsed_expense["amount"],
+                        date=parsed_expense.get("date") or datetime.utcnow(),
+                        user_id=current_user.id
+                    )
+                    db.add(db_expense)
+                    await db.flush()
+
+                    # Create tags if provided
+                    if parsed_expense.get("tags"):
+                        for tag_name in parsed_expense["tags"]:
+                            if tag_name and tag_name.strip():
+                                db_tag = Tag(
+                                    name=tag_name.strip(),
+                                    expense_id=db_expense.id
+                                )
+                                db.add(db_tag)
+
+                    await db.flush()
+                    await db.commit()
+
+                    yield json.dumps({
+                        "type": "row",
+                        "row_number": row_number,
+                        "status": "success",
+                        "description": parsed_expense["description"],
+                        "amount": parsed_expense["amount"]
+                    }) + "\n"
+                    successful += 1
+
+                except ValueError as e:
+                    yield json.dumps({
+                        "type": "row",
+                        "row_number": row_number,
+                        "status": "error",
+                        "error": f"Validation error: {str(e)}"
+                    }) + "\n"
+                    failed += 1
+                except Exception as e:
+                    yield json.dumps({
+                        "type": "row",
+                        "row_number": row_number,
+                        "status": "error",
+                        "error": f"Processing error: {str(e)}"
+                    }) + "\n"
+                    failed += 1
+
+            # Send completion signal
+            yield json.dumps({
+                "type": "complete",
+                "total_rows": row_number - 1,
+                "successful": successful,
+                "failed": failed
+            }) + "\n"
+
+        except Exception as e:
+            logger.error("Error in CSV stream processing", error=str(e), user_id=current_user.id)
+            yield json.dumps({"type": "error", "message": f"Processing error: {str(e)}"}) + "\n"
+
+    return StreamingResponse(
+        process_csv_stream(),
+        media_type="application/x-ndjson",
+        headers={"X-Content-Type-Options": "nosniff"}
+    )
 
 # Mount static files for serving frontend (Docker deployment)
 static_dir = Path(__file__).parent / "static"
