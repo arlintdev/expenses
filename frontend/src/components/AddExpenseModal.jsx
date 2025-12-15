@@ -481,12 +481,23 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
   const handleBulkFileSelect = async (event) => {
     const files = Array.from(event.target.files || []);
 
-    // Filter and validate
+    if (files.length === 0) return;
+
+    // Check if it's a CSV file
+    const csvFiles = files.filter(file => file.name.endsWith('.csv'));
+    if (csvFiles.length > 0) {
+      const csvFile = csvFiles[0];
+      setSelectedFiles([csvFile]);
+      await processCsvUpload(csvFile);
+      return;
+    }
+
+    // Filter and validate images
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
     const validFiles = imageFiles.filter(file => file.size <= 15 * 1024 * 1024);
 
     if (validFiles.length === 0) {
-      setError('No valid images selected. Please select image files under 15MB each.');
+      setError('No valid files selected. Please select image files under 15MB each or a CSV file.');
       return;
     }
 
@@ -498,6 +509,59 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
 
     setSelectedFiles(validFiles);
     await processBulkUpload(validFiles);
+  };
+
+  const processCsvUpload = async (csvFile) => {
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', csvFile);
+
+      const response = await fetch(`${apiUrl}/api/submit-csv`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to process CSV');
+      }
+
+      const data = await response.json();
+
+      setBulkProgress({
+        current: data.total_rows,
+        total: data.total_rows,
+        successes: data.successful,
+        failures: data.failed
+      });
+
+      const results = data.results.map(result => ({
+        file: `Row ${result.row_number}`,
+        success: result.status === 'success',
+        error: result.error_message,
+        expense: result.expense
+      }));
+
+      setProcessedFiles(results);
+
+      if (data.successful > 0) {
+        onExpenseAdded();
+      }
+
+      if (data.failed > 0) {
+        setError(`${data.failed} rows failed to process. Check details below.`);
+      }
+    } catch (err) {
+      setError(err.message);
+      console.error('Error processing CSV:', err);
+      setBulkProgress({ current: 0, total: 0, successes: 0, failures: 0 });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const processBulkUpload = async (files) => {
@@ -664,7 +728,7 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
                 <path d="M9 15l3 3 3-3"></path>
               </svg>
               <span>Bulk Upload</span>
-              <p className="mode-description">Multiple receipts</p>
+              <p className="mode-description">Multiple receipts or CSV</p>
             </button>
           </div>
 
@@ -1081,7 +1145,7 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
           <button className="modal-back" onClick={handleBack}>← Back</button>
 
           <h2>Bulk Upload</h2>
-          <p className="modal-subtitle">Upload multiple receipts at once</p>
+          <p className="modal-subtitle">Upload multiple receipts or a CSV file</p>
 
           <div className="bulk-upload-section">
             {selectedFiles.length === 0 ? (
@@ -1093,7 +1157,7 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
                 </svg>
                 <p>No files selected</p>
                 <button onClick={() => bulkFileInputRef.current?.click()}>
-                  Choose Images
+                  Choose Images or CSV
                 </button>
               </div>
             ) : (
@@ -1115,13 +1179,31 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
                   ></div>
                 </div>
 
+                {isProcessing && (
+                  <div className="processing-overlay">
+                    <div className="loader-content">
+                      <div className="spinner-dots">
+                        <div className="dot"></div>
+                        <div className="dot"></div>
+                        <div className="dot"></div>
+                      </div>
+                      <p>Processing...</p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="file-list">
                   {processedFiles.map((result, idx) => (
-                    <div key={idx} className={`file-item ${result.success ? 'success' : 'failure'}`}>
-                      <span className="file-name">{result.file}</span>
-                      <span className="file-status">
-                        {result.success ? '✓' : '✗'}
-                      </span>
+                    <div key={idx}>
+                      <div className={`file-item ${result.success ? 'success' : 'failure'}`}>
+                        <span className="file-name">{result.file}</span>
+                        <span className="file-status">
+                          {result.success ? '✓' : '✗'}
+                        </span>
+                      </div>
+                      {result.error && !result.success && (
+                        <div className="file-error">{result.error}</div>
+                      )}
                     </div>
                   ))}
                   {selectedFiles.slice(processedFiles.length).map((file, idx) => (
@@ -1148,7 +1230,7 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
             <input
               ref={bulkFileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,.csv"
               multiple
               onChange={handleBulkFileSelect}
               style={{ display: 'none' }}
@@ -1156,7 +1238,7 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
           </div>
 
           <div className="modal-hint">
-            Select multiple images to process them all at once
+            Select multiple images to process them all at once, or upload a CSV file
           </div>
         </div>
       </div>

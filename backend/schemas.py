@@ -92,6 +92,19 @@ class DateSpending(BaseModel):
 class ByDateResponse(BaseModel):
     data: List[DateSpending]
 
+# CSV submission schemas
+class CsvRowResult(BaseModel):
+    row_number: int = Field(..., description="Row number in CSV (1-indexed)")
+    status: str = Field(..., description="Status: 'success' or 'error'")
+    expense: Optional[ExpenseResponse] = Field(None, description="Created expense if successful")
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+
+class SubmitCsvResponse(BaseModel):
+    total_rows: int = Field(..., description="Total rows processed (excluding header)")
+    successful: int = Field(..., description="Number of expenses created successfully")
+    failed: int = Field(..., description="Number of rows that failed")
+    results: List[CsvRowResult] = Field(..., description="Detailed result for each row")
+
 # Tag schemas
 class TagCreate(BaseModel):
     name: str = Field(..., min_length=1, description="Tag name")

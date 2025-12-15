@@ -13,13 +13,15 @@ import base64
 from datetime import datetime, timedelta
 import time
 import structlog
+import csv
+import io
 
 from models import init_db, get_db, Expense, User, Tag, UserTag, ExpenseTag, AsyncSessionLocal
 from schemas import (
     ExpenseCreate, ExpenseResponse, VoiceTranscriptionResponse,
     GoogleAuthRequest, AuthResponse, UserResponse,
     SummaryStats, TagSpending, ByTagResponse, DateSpending, ByDateResponse,
-    TagCreate
+    TagCreate, SubmitCsvResponse, CsvRowResult
 )
 from claude_service import ClaudeService
 from auth import verify_google_token, create_access_token, get_current_user, get_or_create_user
@@ -940,6 +942,139 @@ async def transcribe_text(
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to process transcription: {str(e)}")
+
+@app.post("/api/submit-csv", response_model=SubmitCsvResponse)
+async def submit_csv(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Process CSV file for bulk expense submission.
+    Each row is processed independently with column headers as context.
+    Returns detailed results for each row.
+    """
+    try:
+        # Read CSV file
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="CSV file is empty")
+
+        # Parse CSV
+        text_content = content.decode('utf-8')
+        csv_reader = csv.DictReader(io.StringIO(text_content))
+
+        if csv_reader.fieldnames is None or len(csv_reader.fieldnames) == 0:
+            raise HTTPException(status_code=400, detail="CSV file has no headers")
+
+        # Get user's existing tags and context for processing
+        tag_result = await db.execute(
+            select(Tag.name)
+            .join(Expense)
+            .filter(Expense.user_id == current_user.id)
+            .distinct()
+        )
+        existing_tags = list(tag_result.scalars().all()) if tag_result.scalars().all() else []
+        user_context = current_user.expense_context
+
+        results = []
+        row_number = 1
+
+        for row in csv_reader:
+            row_number += 1
+            try:
+                # Format row data as text for Claude to parse
+                row_text = ", ".join([f"{key}: {value}" for key, value in row.items() if value])
+
+                if not row_text.strip():
+                    results.append(CsvRowResult(
+                        row_number=row_number,
+                        status="error",
+                        error_message="Row is empty"
+                    ))
+                    continue
+
+                # Parse the row using Claude
+                parsed_expense, warning = claude_service.parse_expense_from_text(
+                    row_text,
+                    existing_tags,
+                    user_context
+                )
+
+                # Create expense in database
+                db_expense = Expense(
+                    description=parsed_expense["description"],
+                    recipient=parsed_expense["recipient"],
+                    materials=parsed_expense.get("materials"),
+                    hours=parsed_expense.get("hours"),
+                    amount=parsed_expense["amount"],
+                    date=parsed_expense.get("date") or datetime.utcnow(),
+                    user_id=current_user.id
+                )
+                db.add(db_expense)
+                await db.flush()
+
+                # Create tags if provided
+                if parsed_expense.get("tags"):
+                    for tag_name in parsed_expense["tags"]:
+                        if tag_name and tag_name.strip():
+                            db_tag = Tag(
+                                name=tag_name.strip(),
+                                expense_id=db_expense.id
+                            )
+                            db.add(db_tag)
+
+                await db.flush()
+                expense_id = db_expense.id
+
+                # Reload expense with tags
+                expense_result = await db.execute(
+                    select(Expense)
+                    .options(joinedload(Expense.tags))
+                    .where(Expense.id == expense_id)
+                )
+                created_expense = expense_result.unique().scalar_one()
+
+                results.append(CsvRowResult(
+                    row_number=row_number,
+                    status="success",
+                    expense=created_expense,
+                    error_message=None
+                ))
+
+            except ValueError as e:
+                results.append(CsvRowResult(
+                    row_number=row_number,
+                    status="error",
+                    error_message=f"Validation error: {str(e)}"
+                ))
+            except Exception as e:
+                results.append(CsvRowResult(
+                    row_number=row_number,
+                    status="error",
+                    error_message=f"Processing error: {str(e)}"
+                ))
+
+        # Commit all successful changes
+        await db.commit()
+
+        # Calculate summary
+        successful = sum(1 for r in results if r.status == "success")
+        failed = sum(1 for r in results if r.status == "error")
+
+        return SubmitCsvResponse(
+            total_rows=len(results),
+            successful=successful,
+            failed=failed,
+            results=results
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error("Error processing CSV", error=str(e), user_id=current_user.id)
+        raise HTTPException(status_code=500, detail=f"Failed to process CSV: {str(e)}")
 
 # Mount static files for serving frontend (Docker deployment)
 static_dir = Path(__file__).parent / "static"
