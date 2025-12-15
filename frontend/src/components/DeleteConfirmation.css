@@ -125,3 +125,44 @@
 .delete-confirm-button:active {
   background: #b91c1c;
 }
+
+/* Dark Mode Support */
+[data-theme="dark"] .delete-confirmation-overlay {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+[data-theme="dark"] .delete-confirmation-content {
+  background: #1a1a1a;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .delete-confirmation-icon {
+  background: rgba(220, 53, 69, 0.2);
+}
+
+[data-theme="dark"] .delete-confirmation-icon svg {
+  color: #f44336;
+}
+
+[data-theme="dark"] .delete-confirmation-content h3 {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .delete-item-details {
+  background: #2a2a2a;
+  border-color: #404040;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .delete-warning {
+  color: #cccccc;
+}
+
+[data-theme="dark"] .delete-cancel-button {
+  background: #2a2a2a;
+  color: #cccccc;
+}
+
+[data-theme="dark"] .delete-cancel-button:hover {
+  background: #333333;
+}
