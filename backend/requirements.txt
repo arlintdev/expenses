@@ -14,3 +14,4 @@ passlib[bcrypt]==1.7.4
 google-auth==2.35.0
 google-auth-oauthlib==1.2.1
 google-auth-httplib2==0.2.0
+structlog==24.4.0

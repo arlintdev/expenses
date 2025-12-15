@@ -131,9 +131,9 @@ If any information is missing or unclear, make reasonable assumptions based on c
             return parsed_data, warning_message
 
         except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse Claude response as JSON: {str(e)}")
+            raise ValueError("AI was unable to extract expense information from your input. Please try rephrasing your expense description or providing more details.")
         except Exception as e:
-            raise ValueError(f"Error processing expense with Claude: {str(e)}")
+            raise ValueError(f"Unable to process expense information. Please try again with a clearer description.")
 
     async def transcribe_audio(self, audio_base64: str, media_type: str) -> str:
         """
@@ -314,6 +314,6 @@ If any information is missing or unclear, make reasonable assumptions based on c
             return parsed_data, warning_message
 
         except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse Claude response as JSON: {str(e)}")
+            raise ValueError("AI was unable to interpret the uploaded image. Please try a clearer image or manually enter the expense details.")
         except Exception as e:
-            raise ValueError(f"Error processing image with Claude: {str(e)}")
+            raise ValueError("Unable to process the uploaded image. Please try again or enter the expense information manually.")

@@ -37,7 +37,32 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     expenses = relationship("Expense", back_populates="user", cascade="all, delete-orphan")
+    user_tags = relationship("UserTag", back_populates="user", cascade="all, delete-orphan")
 
+class UserTag(Base):
+    """Standalone tags that belong to a user, not tied to specific expenses."""
+    __tablename__ = "user_tags"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="user_tags")
+
+class ExpenseTag(Base):
+    """Junction table for many-to-many relationship between expenses and user tags."""
+    __tablename__ = "expense_tags"
+
+    id = Column(Integer, primary_key=True, index=True)
+    expense_id = Column(Integer, ForeignKey("expenses.id", ondelete="CASCADE"), nullable=False)
+    user_tag_id = Column(Integer, ForeignKey("user_tags.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    expense = relationship("Expense", back_populates="expense_tags")
+    user_tag = relationship("UserTag", backref="expense_tags")
+
+# Keep old Tag model for backward compatibility during migration
 class Tag(Base):
     __tablename__ = "tags"
 
@@ -62,7 +87,8 @@ class Expense(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="expenses")
-    tags = relationship("Tag", back_populates="expense", cascade="all, delete-orphan")
+    tags = relationship("Tag", back_populates="expense", cascade="all, delete-orphan")  # Old relationship
+    expense_tags = relationship("ExpenseTag", back_populates="expense", cascade="all, delete-orphan")  # New relationship
 
 def run_migrations():
     """

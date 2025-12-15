@@ -91,3 +91,7 @@ class DateSpending(BaseModel):
 
 class ByDateResponse(BaseModel):
     data: List[DateSpending]
+
+# Tag schemas
+class TagCreate(BaseModel):
+    name: str = Field(..., min_length=1, description="Tag name")

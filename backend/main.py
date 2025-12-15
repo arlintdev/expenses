@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -11,12 +11,15 @@ from pathlib import Path
 from dotenv import load_dotenv
 import base64
 from datetime import datetime, timedelta
+import time
+import structlog
 
-from models import init_db, get_db, Expense, User, Tag, AsyncSessionLocal
+from models import init_db, get_db, Expense, User, Tag, UserTag, ExpenseTag, AsyncSessionLocal
 from schemas import (
     ExpenseCreate, ExpenseResponse, VoiceTranscriptionResponse,
     GoogleAuthRequest, AuthResponse, UserResponse,
-    SummaryStats, TagSpending, ByTagResponse, DateSpending, ByDateResponse
+    SummaryStats, TagSpending, ByTagResponse, DateSpending, ByDateResponse,
+    TagCreate
 )
 from claude_service import ClaudeService
 from auth import verify_google_token, create_access_token, get_current_user, get_or_create_user
@@ -24,6 +27,23 @@ from auth import verify_google_token, create_access_token, get_current_user, get
 # Load .env from the backend directory
 env_path = Path(__file__).parent / '.env'
 load_dotenv(dotenv_path=env_path)
+
+# Configure structured logging
+structlog.configure(
+    processors=[
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.add_log_level,
+        structlog.processors.StackInfoRenderer(),
+        structlog.dev.set_exc_info,
+        structlog.processors.JSONRenderer() if os.getenv("ENVIRONMENT") == "production" else structlog.dev.ConsoleRenderer(),
+    ],
+    wrapper_class=structlog.testing.LogCapture if os.getenv("TESTING") else structlog.make_filtering_bound_logger(20),
+    logger_factory=structlog.WriteLoggerFactory(),
+    cache_logger_on_first_use=True,
+)
+
+# Get a logger
+logger = structlog.get_logger()
 
 app = FastAPI(title="Expense Tracker API", version="1.0.0")
 
@@ -36,6 +56,67 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+
+    # Extract user info from auth header if available
+    user_info = "anonymous"
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        try:
+            # We'll just log that auth is present, not decode the full token
+            user_info = "authenticated"
+        except Exception:
+            user_info = "invalid_auth"
+
+    # Log the incoming request
+    logger.info(
+        "request_started",
+        method=request.method,
+        url=str(request.url),
+        path=request.url.path,
+        query_params=dict(request.query_params),
+        user_type=user_info,
+        user_agent=request.headers.get("user-agent", ""),
+        client_ip=request.client.host if request.client else "unknown"
+    )
+
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+
+        # Log the response
+        logger.info(
+            "request_completed",
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            process_time=round(process_time, 4),
+            user_type=user_info
+        )
+
+        return response
+
+    except Exception as e:
+        process_time = time.time() - start_time
+
+        # Log the error
+        logger.error(
+            "request_failed",
+            method=request.method,
+            path=request.url.path,
+            error=str(e),
+            error_type=type(e).__name__,
+            process_time=round(process_time, 4),
+            user_type=user_info,
+            exc_info=True
+        )
+
+        # Re-raise the exception so FastAPI can handle it
+        raise
 
 # Initialize database on startup
 @app.on_event("startup")
@@ -402,38 +483,64 @@ async def get_expenses(
     year: 4-digit year
     tags: comma-separated tag names to filter by (e.g., "food,travel")
     """
-    query = select(Expense).filter(Expense.user_id == current_user.id)
+    try:
+        query = select(Expense).filter(
+            Expense.user_id == current_user.id,
+            Expense.amount > 0,  # Exclude zero amount expenses
+            ~Expense.description.like("[Tag holder for:%")  # Exclude tag holders
+        )
 
-    # Add eager loading for tags
-    query = query.options(joinedload(Expense.tags))
+        # Add eager loading for tags with proper join
+        query = query.options(joinedload(Expense.tags))
 
-    # Month/year filtering
-    if year and month:
-        from datetime import datetime
-        month_int = int(month)
-        start_date = datetime(year, month_int, 1)
-        if month_int == 12:
+        # Month/year filtering
+        if year and month:
+            from datetime import datetime
+            month_int = int(month)
+            start_date = datetime(year, month_int, 1)
+            if month_int == 12:
+                end_date = datetime(year + 1, 1, 1)
+            else:
+                end_date = datetime(year, month_int + 1, 1)
+            query = query.filter(Expense.date >= start_date, Expense.date < end_date)
+        elif year:
+            from datetime import datetime
+            start_date = datetime(year, 1, 1)
             end_date = datetime(year + 1, 1, 1)
-        else:
-            end_date = datetime(year, month_int + 1, 1)
-        query = query.filter(Expense.date >= start_date, Expense.date < end_date)
-    elif year:
-        from datetime import datetime
-        start_date = datetime(year, 1, 1)
-        end_date = datetime(year + 1, 1, 1)
-        query = query.filter(Expense.date >= start_date, Expense.date < end_date)
+            query = query.filter(Expense.date >= start_date, Expense.date < end_date)
 
-    # Tag filtering
-    if tags:
-        tag_list = [t.strip() for t in tags.split(',') if t.strip()]
-        if tag_list:
-            # Join with tags table and filter
-            query = query.join(Tag).filter(Tag.name.in_(tag_list))
+        # Tag filtering - use exists to avoid orphaned tag issues
+        if tags:
+            tag_list = [t.strip() for t in tags.split(',') if t.strip()]
+            if tag_list:
+                # Use EXISTS subquery to avoid issues with orphaned tags
+                tag_exists = select(Tag.expense_id).filter(
+                    Tag.expense_id == Expense.id,
+                    Tag.name.in_(tag_list)
+                ).exists()
+                query = query.filter(tag_exists)
 
-    query = query.order_by(Expense.date.desc()).offset(skip).limit(limit)
-    result = await db.execute(query)
-    expenses = result.unique().scalars().all()  # unique() prevents duplicates from joins
-    return expenses
+        query = query.order_by(Expense.date.desc()).offset(skip).limit(limit)
+        result = await db.execute(query)
+        expenses = result.unique().scalars().all()  # unique() prevents duplicates from joins
+
+        # Filter out any expenses with invalid tag relationships
+        valid_expenses = []
+        for expense in expenses:
+            try:
+                # Try to access the tags to ensure they're valid
+                _ = [tag.name for tag in expense.tags]
+                valid_expenses.append(expense)
+            except Exception as e:
+                print(f"Skipping expense {expense.id} due to invalid tags: {e}")
+                continue
+
+        return valid_expenses
+    except Exception as e:
+        print(f"Error fetching expenses: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to fetch expenses: {str(e)}")
 
 @app.get("/api/expenses/{expense_id}", response_model=ExpenseResponse)
 async def get_expense(
@@ -577,6 +684,148 @@ async def delete_expense(
     await db.delete(expense)
     await db.commit()
     return None
+
+# Tag management endpoints
+@app.post("/api/tags", status_code=201)
+async def create_tag(
+    tag_data: TagCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Create a new standalone tag for the current user.
+    """
+    try:
+        tag_name = tag_data.name.strip()
+        if not tag_name:
+            raise HTTPException(status_code=400, detail="Tag name cannot be empty")
+
+        # Check if tag already exists for this user
+        existing_tag_query = select(UserTag).filter(
+            UserTag.user_id == current_user.id,
+            UserTag.name == tag_name
+        )
+        result = await db.execute(existing_tag_query)
+        existing_tag = result.scalar_one_or_none()
+
+        if existing_tag:
+            raise HTTPException(status_code=409, detail="Tag already exists")
+
+        # Create the standalone user tag
+        db_user_tag = UserTag(
+            name=tag_name,
+            user_id=current_user.id
+        )
+        db.add(db_user_tag)
+
+        await db.commit()
+        return {"message": "Tag created successfully", "name": tag_name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create tag: {str(e)}")
+
+@app.get("/api/user-tags")
+async def get_user_tags(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all user tags with their usage counts.
+    """
+    try:
+        # Fetch all UserTags for this user
+        user_tags_query = select(UserTag).filter(UserTag.user_id == current_user.id).order_by(UserTag.name)
+        result = await db.execute(user_tags_query)
+        user_tags = result.scalars().all()
+
+        # Calculate usage counts for each tag by counting ExpenseTag relationships
+        tags_with_counts = []
+        for user_tag in user_tags:
+            count_query = select(func.count(ExpenseTag.id)).filter(ExpenseTag.user_tag_id == user_tag.id)
+            count_result = await db.execute(count_query)
+            usage_count = count_result.scalar() or 0
+
+            tags_with_counts.append({
+                "name": user_tag.name,
+                "usage_count": usage_count,
+                "created_at": user_tag.created_at.isoformat()
+            })
+
+        return {"tags": tags_with_counts}
+    except Exception as e:
+        logger.error("Error fetching user tags", error=str(e), user_id=current_user.id)
+        raise HTTPException(status_code=500, detail="Failed to fetch tags")
+
+@app.delete("/api/tags/{tag_name}", status_code=204)
+async def delete_tag(
+    tag_name: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Delete a user tag and remove it from all expenses for the current user.
+    """
+    try:
+        # Find the UserTag for this user
+        user_tag_query = select(UserTag).filter(
+            UserTag.user_id == current_user.id,
+            UserTag.name == tag_name
+        )
+        result = await db.execute(user_tag_query)
+        user_tag = result.scalar_one_or_none()
+
+        if not user_tag:
+            raise HTTPException(status_code=404, detail="Tag not found")
+
+        # Delete all ExpenseTag relationships for this UserTag
+        delete_expense_tags_query = delete(ExpenseTag).where(
+            ExpenseTag.user_tag_id == user_tag.id
+        )
+        await db.execute(delete_expense_tags_query)
+
+        # Delete the UserTag itself
+        await db.delete(user_tag)
+
+        await db.commit()
+        print(f"Successfully deleted tag '{tag_name}' for user {current_user.id}")
+        return None
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        print(f"Error deleting tag '{tag_name}': {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete tag: {str(e)}")
+
+@app.post("/api/cleanup-orphaned-tags", status_code=204)
+async def cleanup_orphaned_tags(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Clean up orphaned tags that reference non-existent expenses.
+    """
+    try:
+        # Find and delete tags that reference expenses that don't exist
+        orphaned_tags_query = select(Tag).outerjoin(Expense).filter(
+            Expense.id == None
+        )
+        result = await db.execute(orphaned_tags_query)
+        orphaned_tags = result.scalars().all()
+
+        count = 0
+        for tag in orphaned_tags:
+            await db.delete(tag)
+            count += 1
+
+        await db.commit()
+        print(f"Cleaned up {count} orphaned tags")
+        return None
+    except Exception as e:
+        await db.rollback()
+        print(f"Error cleaning orphaned tags: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to cleanup: {str(e)}")
 
 @app.post("/api/transcribe-audio")
 async def transcribe_audio_file(
