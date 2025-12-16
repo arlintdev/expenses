@@ -51,19 +51,31 @@ async def migrate_sqlite_to_postgres(sqlite_path: str, postgres_url: str) -> boo
 
         # Get list of tables from SQLite
         sqlite_inspector = inspect(sqlite_engine)
-        sqlite_tables = sqlite_inspector.get_table_names()
+        all_tables = sqlite_inspector.get_table_names()
+
+        # Filter out system tables that shouldn't be migrated
+        system_tables = ['alembic_version', 'sqlite_sequence']
+        sqlite_tables = [t for t in all_tables if t not in system_tables]
 
         if not sqlite_tables:
             logger.info("sqlite_empty", message="SQLite database is empty, nothing to migrate")
             return False
 
         logger.info("migration_tables_found", count=len(sqlite_tables), tables=sqlite_tables)
+        if system_tables:
+            logger.debug("skipping_system_tables", tables=[t for t in all_tables if t in system_tables])
 
-        # Migrate each table
+        # Migrate each table in dependency order
+        # Users first, then expenses, then tags that reference them
+        table_order = ['users', 'user_tags', 'categories', 'expenses', 'tags', 'expense_tags']
+        ordered_tables = [t for t in table_order if t in sqlite_tables]
+        # Add any remaining tables not in the order list
+        ordered_tables.extend([t for t in sqlite_tables if t not in table_order])
+
         migrated_rows = {}
         with sqlite_engine.connect() as sqlite_conn:
             with postgres_engine.connect() as postgres_conn:
-                for table in sqlite_tables:
+                for table in ordered_tables:
                     try:
                         # Read all data from SQLite table
                         result = sqlite_conn.execute(text(f"SELECT * FROM {table}"))
