@@ -166,7 +166,13 @@ def run_migrations():
 
         # Set the database URL from environment or default
         database_url = os.getenv("DATABASE_URL", "sqlite:///./expenses.db")
-        alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+
+        # Convert async database URLs to sync for Alembic
+        # Alembic runs synchronously and can't use async drivers
+        sync_database_url = database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+        sync_database_url = sync_database_url.replace("sqlite+aiosqlite://", "sqlite://")
+
+        alembic_cfg.set_main_option("sqlalchemy.url", sync_database_url)
 
         # Run migrations to head
         command.upgrade(alembic_cfg, "head")
