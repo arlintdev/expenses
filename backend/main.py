@@ -1315,8 +1315,9 @@ async def transcribe_text(
     try:
         # Get unique tag names from existing expenses
         result = await db.execute(
-            select(Tag.name)
-            .join(Expense)
+            select(UserTag.name)
+            .join(ExpenseTag, UserTag.id == ExpenseTag.user_tag_id)
+            .join(Expense, ExpenseTag.expense_id == Expense.id)
             .filter(Expense.user_id == current_user.id)
             .distinct()
         )
@@ -1364,8 +1365,9 @@ async def submit_csv(
 
         # Get user's existing tags and context for processing
         tag_result = await db.execute(
-            select(Tag.name)
-            .join(Expense)
+            select(UserTag.name)
+            .join(ExpenseTag, UserTag.id == ExpenseTag.user_tag_id)
+            .join(Expense, ExpenseTag.expense_id == Expense.id)
             .filter(Expense.user_id == current_user.id)
             .distinct()
         )
@@ -1522,8 +1524,9 @@ async def submit_csv_stream(
 
             # Get user's existing tags and context for processing
             tag_result = await stream_db.execute(
-                select(Tag.name)
-                .join(Expense)
+                select(UserTag.name)
+                .join(ExpenseTag, UserTag.id == ExpenseTag.user_tag_id)
+                .join(Expense, ExpenseTag.expense_id == Expense.id)
                 .filter(Expense.user_id == user_id)
                 .distinct()
             )
