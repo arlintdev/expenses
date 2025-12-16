@@ -260,7 +260,8 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
         email=current_user.email,
         name=current_user.name,
         picture=current_user.picture,
-        created_at=current_user.created_at
+        created_at=current_user.created_at,
+        updated_at=current_user.updated_at
     )
 
 @app.get("/api/settings")
