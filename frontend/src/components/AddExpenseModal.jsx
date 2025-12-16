@@ -1445,7 +1445,7 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
                   setError('Description and Amount are required');
                   return;
                 }
-                await submitExpense(confirmationData);
+                await createExpense(confirmationData);
               }}
               className="confirm-button"
               disabled={isProcessing}
