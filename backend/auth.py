@@ -257,3 +257,31 @@ async def get_current_user(
         )
 
     return user
+
+
+async def get_admin_user(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """
+    Dependency that ensures the current user is an admin.
+    Raises 403 Forbidden if user is not an admin.
+
+    Usage:
+        @app.get("/api/admin/stats")
+        async def admin_stats(admin: User = Depends(get_admin_user)):
+            # Only admins can access this endpoint
+            pass
+    """
+    if not current_user.is_admin:
+        logger.warning(
+            "unauthorized_admin_access",
+            user_id=current_user.id,
+            email=current_user.email
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required. You do not have permission to access this resource."
+        )
+
+    logger.info("admin_access_granted", user_id=current_user.id)
+    return current_user

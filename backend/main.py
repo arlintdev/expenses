@@ -22,10 +22,12 @@ from schemas import (
     ExpenseCreate, ExpenseResponse, VoiceTranscriptionResponse,
     GoogleAuthRequest, AuthResponse, UserResponse,
     SummaryStats, TagSpending, ByTagResponse, DateSpending, ByDateResponse,
-    TagCreate, SubmitCsvResponse, CsvRowResult
+    TagCreate, SubmitCsvResponse, CsvRowResult,
+    AdminUserSummary, AdminUsersResponse
 )
 from claude_service import ClaudeService
-from auth import verify_google_token, create_access_token, get_current_user, get_or_create_user
+from auth import verify_google_token, create_access_token, get_current_user, get_or_create_user, get_admin_user
+import time
 
 # Load .env from the backend directory
 env_path = Path(__file__).parent / '.env'
@@ -245,6 +247,7 @@ async def google_auth(auth_request: GoogleAuthRequest, db: AsyncSession = Depend
                 email=user.email,
                 name=user.name,
                 picture=user.picture,
+                is_admin=user.is_admin,
                 created_at=user.created_at,
                 updated_at=user.updated_at
             )
@@ -274,9 +277,107 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
         email=current_user.email,
         name=current_user.name,
         picture=current_user.picture,
+        is_admin=current_user.is_admin,
         created_at=current_user.created_at,
         updated_at=current_user.updated_at
     )
+
+# Admin endpoints
+@app.get("/api/admin/users", response_model=AdminUsersResponse)
+async def list_all_users(
+    admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Admin-only: List all users with expense counts.
+    Returns user list with expense statistics (counts only, no amounts).
+    """
+    # Query users with expense counts using LEFT JOIN
+    query = select(
+        User,
+        func.count(Expense.id).label('expense_count')
+    ).outerjoin(Expense).group_by(User.id).order_by(User.created_at.desc())
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    users = [
+        AdminUserSummary(
+            id=row.User.id,
+            email=row.User.email,
+            name=row.User.name,
+            is_admin=row.User.is_admin,
+            expense_count=row.expense_count,
+            created_at=row.User.created_at,
+            updated_at=row.User.updated_at
+        )
+        for row in rows
+    ]
+
+    total_admins = sum(1 for u in users if u.is_admin)
+
+    logger.info(
+        "admin_users_listed",
+        admin_id=admin.id,
+        total_users=len(users),
+        total_admins=total_admins
+    )
+
+    return AdminUsersResponse(
+        users=users,
+        total_users=len(users),
+        total_admins=total_admins
+    )
+
+
+@app.post("/api/admin/users/{user_id}/elevate", status_code=200)
+async def elevate_user_to_admin(
+    user_id: str,
+    admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Admin-only: Elevate a user to administrator role.
+    Requires existing admin to perform elevation.
+    """
+    # Prevent self-modification
+    if user_id == admin.id:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot modify your own admin status"
+        )
+
+    # Find target user
+    result = await db.execute(select(User).filter(User.id == user_id))
+    target_user = result.scalar_one_or_none()
+
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if target_user.is_admin:
+        raise HTTPException(
+            status_code=400,
+            detail="User is already an administrator"
+        )
+
+    # Elevate to admin
+    target_user.is_admin = True
+    await db.commit()
+
+    logger.info(
+        "user_elevated_to_admin",
+        admin_id=admin.id,
+        admin_email=admin.email,
+        elevated_user_id=user_id,
+        elevated_user_email=target_user.email
+    )
+
+    return {
+        "message": f"User {target_user.email} elevated to administrator successfully",
+        "user_id": user_id,
+        "is_admin": True
+    }
+
 
 @app.get("/api/settings")
 async def get_user_settings(

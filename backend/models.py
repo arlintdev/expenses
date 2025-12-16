@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, event
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, event
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -82,6 +82,7 @@ class User(Base):
     name = Column(String, nullable=True)
     picture = Column(String, nullable=True)
     expense_context = Column(String, nullable=True)  # Custom context for expense generation
+    is_admin = Column(Boolean, default=False, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

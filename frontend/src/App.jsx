@@ -6,6 +6,7 @@ import ExpensesRoute from './routes/ExpensesRoute';
 import ExpenseEditRoute from './routes/ExpenseEditRoute';
 import TagsRoute from './routes/TagsRoute';
 import SettingsRoute from './routes/SettingsRoute';
+import AdminRoute from './routes/AdminRoute';
 import BottomNav from './components/BottomNav';
 import AddExpenseModal from './components/AddExpenseModal';
 import Login from './components/Login';

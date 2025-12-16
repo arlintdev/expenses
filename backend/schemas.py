@@ -8,6 +8,7 @@ class UserResponse(BaseModel):
     email: str
     name: Optional[str]
     picture: Optional[str]
+    is_admin: bool
     created_at: datetime
     updated_at: datetime
 
@@ -102,6 +103,24 @@ class SubmitCsvResponse(BaseModel):
     successful: int = Field(..., description="Number of expenses created successfully")
     failed: int = Field(..., description="Number of rows that failed")
     results: List[CsvRowResult] = Field(..., description="Detailed result for each row")
+
+# Admin schemas
+class AdminUserSummary(BaseModel):
+    id: str
+    email: str
+    name: Optional[str]
+    is_admin: bool
+    expense_count: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class AdminUsersResponse(BaseModel):
+    users: List['AdminUserSummary']
+    total_users: int
+    total_admins: int
 
 # Tag schemas
 class TagCreate(BaseModel):
