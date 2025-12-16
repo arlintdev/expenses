@@ -129,8 +129,9 @@ async def startup_event():
     # Verify WAL mode is enabled for SQLite
     try:
         from models import AsyncSessionLocal
+        from sqlalchemy import text
         async with AsyncSessionLocal() as session:
-            result = await session.execute("PRAGMA journal_mode")
+            result = await session.execute(text("PRAGMA journal_mode"))
             journal_mode = result.scalar()
             logger.info("database_initialized", journal_mode=journal_mode)
             if journal_mode != "wal":
