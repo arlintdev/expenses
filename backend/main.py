@@ -611,7 +611,7 @@ async def get_expenses(
 
 @app.get("/api/expenses/{expense_id}", response_model=ExpenseResponse)
 async def get_expense(
-    expense_id: int,
+    expense_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -633,7 +633,7 @@ async def get_expense(
 
 @app.patch("/api/expenses/{expense_id}", response_model=ExpenseResponse)
 async def update_expense(
-    expense_id: int,
+    expense_id: str,
     expense_update: dict,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -725,7 +725,7 @@ async def update_expense(
 
 @app.delete("/api/expenses/{expense_id}", status_code=204)
 async def delete_expense(
-    expense_id: int,
+    expense_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
