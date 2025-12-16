@@ -14,7 +14,7 @@ services:
     networks:
       - expense-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-expenseuser}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-expenseuser} -d ${POSTGRES_DB:-expenses}"]
       interval: 10s
       timeout: 5s
       retries: 5
