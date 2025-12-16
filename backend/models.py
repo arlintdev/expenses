@@ -125,6 +125,7 @@ class Expense(Base):
     __tablename__ = "expenses"
 
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid6.uuid6()))
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     description = Column(String, nullable=False)
     recipient = Column(String, nullable=False)
