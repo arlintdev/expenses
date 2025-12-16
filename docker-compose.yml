@@ -1,6 +1,24 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: expense-tracker-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-expenseuser}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-change_this_password}
+      - POSTGRES_DB=${POSTGRES_DB:-expenses}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - expense-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-expenseuser}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   expense-tracker:
     image: ghcr.io/arlintdev/expenses:latest
     container_name: expense-tracker
@@ -10,11 +28,12 @@ services:
     env_file:
       - .env  # Load environment variables from .env file
     environment:
-      - DATABASE_URL=sqlite:///./data/expenses.db
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://expenseuser:change_this_password@postgres:5432/expenses}
       - CORS_ORIGINS=${CORS_ORIGINS:-https://expenses.arlint.dev,http://192.168.68.63:3000,http://localhost:3000}
       - ENVIRONMENT=${ENVIRONMENT:-production}
-    volumes:
-      - ./data:/app/data  # Persist database outside container
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - expense-network
     healthcheck:
@@ -23,6 +42,10 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+volumes:
+  postgres_data:
+    driver: local
 
 networks:
   expense-network:

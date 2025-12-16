@@ -124,18 +124,37 @@ async def log_requests(request: Request, call_next):
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_event():
+    # Check if we need to migrate from SQLite to PostgreSQL
+    try:
+        from models import is_postgres
+        if is_postgres:
+            from migrate_sqlite_to_postgres import check_and_migrate
+            migration_success = await check_and_migrate()
+            if migration_success:
+                logger.info("sqlite_to_postgres_migration_completed")
+    except Exception as e:
+        logger.warning("migration_check_failed", error=str(e), message="Continuing with initialization")
+
+    # Initialize database (create tables if needed)
     await init_db()
 
-    # Verify WAL mode is enabled for SQLite
+    # Verify database connection
     try:
-        from models import AsyncSessionLocal
+        from models import AsyncSessionLocal, is_postgres
         from sqlalchemy import text
         async with AsyncSessionLocal() as session:
-            result = await session.execute(text("PRAGMA journal_mode"))
-            journal_mode = result.scalar()
-            logger.info("database_initialized", journal_mode=journal_mode)
-            if journal_mode != "wal":
-                logger.warning("wal_mode_not_enabled", current_mode=journal_mode)
+            if is_postgres:
+                # Check PostgreSQL version
+                result = await session.execute(text("SELECT version()"))
+                version = result.scalar()
+                logger.info("database_initialized", db_type="postgresql", version=version[:50])
+            else:
+                # Check SQLite WAL mode
+                result = await session.execute(text("PRAGMA journal_mode"))
+                journal_mode = result.scalar()
+                logger.info("database_initialized", db_type="sqlite", journal_mode=journal_mode)
+                if journal_mode != "wal":
+                    logger.warning("wal_mode_not_enabled", current_mode=journal_mode)
     except Exception as e:
         logger.error("database_check_failed", error=str(e))
 

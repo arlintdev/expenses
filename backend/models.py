@@ -13,41 +13,58 @@ load_dotenv(dotenv_path=env_path)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./expenses.db")
 
+# Detect database type and configure accordingly
+is_postgres = "postgresql" in DATABASE_URL
+is_sqlite = DATABASE_URL.startswith("sqlite")
+
 # Convert sqlite:// to sqlite+aiosqlite:// for async support
-if DATABASE_URL.startswith("sqlite://"):
+if is_sqlite:
     ASYNC_DATABASE_URL = DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://")
 else:
     ASYNC_DATABASE_URL = DATABASE_URL
 
-# Create async engine with SQLite optimizations
-# Note: SQLite uses NullPool by default (no connection pooling)
-# Connection pooling doesn't apply to SQLite as it's file-based
-engine = create_async_engine(
-    ASYNC_DATABASE_URL,
-    echo=False,
-    connect_args={
-        "timeout": 30,  # 30 second timeout for database locks
-        "check_same_thread": False,  # Allow sharing connection across threads (safe with async)
-    },
-    pool_pre_ping=True,  # Verify connections before using them
-    pool_recycle=3600,  # Recycle connections after 1 hour
-)
+# Create async engine with appropriate configuration
+if is_postgres:
+    # PostgreSQL configuration with connection pooling
+    engine = create_async_engine(
+        ASYNC_DATABASE_URL,
+        echo=False,
+        pool_size=20,  # Maximum number of connections in the pool
+        max_overflow=10,  # Allow up to 10 additional connections when pool is exhausted
+        pool_pre_ping=True,  # Verify connections before using them
+        pool_recycle=3600,  # Recycle connections after 1 hour
+        pool_timeout=30,  # Wait up to 30s for a connection from the pool
+    )
+    print("✅ PostgreSQL async engine initialized with connection pooling")
+else:
+    # SQLite configuration (development/fallback)
+    engine = create_async_engine(
+        ASYNC_DATABASE_URL,
+        echo=False,
+        connect_args={
+            "timeout": 30,  # 30 second timeout for database locks
+            "check_same_thread": False,  # Allow sharing connection across threads (safe with async)
+        },
+        pool_pre_ping=True,  # Verify connections before using them
+        pool_recycle=3600,  # Recycle connections after 1 hour
+    )
 
-# Enable WAL mode for SQLite to allow concurrent reads during writes
-@event.listens_for(engine.sync_engine, "connect")
-def set_sqlite_pragma(dbapi_conn, connection_record):
-    """Set SQLite pragmas for better concurrency and performance."""
-    cursor = dbapi_conn.cursor()
-    # WAL mode allows multiple readers even during a write
-    cursor.execute("PRAGMA journal_mode=WAL")
-    # Increase cache size for better performance (10MB)
-    cursor.execute("PRAGMA cache_size=-10000")
-    # Set busy timeout to 30 seconds
-    cursor.execute("PRAGMA busy_timeout=30000")
-    # Use normal synchronous mode for better performance (still safe with WAL)
-    cursor.execute("PRAGMA synchronous=NORMAL")
-    cursor.close()
-    print(f"✅ SQLite connection initialized with WAL mode")
+    # Enable WAL mode for SQLite to allow concurrent reads during writes
+    @event.listens_for(engine.sync_engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        """Set SQLite pragmas for better concurrency and performance."""
+        cursor = dbapi_conn.cursor()
+        # WAL mode allows multiple readers even during a write
+        cursor.execute("PRAGMA journal_mode=WAL")
+        # Increase cache size for better performance (10MB)
+        cursor.execute("PRAGMA cache_size=-10000")
+        # Set busy timeout to 30 seconds
+        cursor.execute("PRAGMA busy_timeout=30000")
+        # Use normal synchronous mode for better performance (still safe with WAL)
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.close()
+
+    print("✅ SQLite async engine initialized with WAL mode")
 
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
