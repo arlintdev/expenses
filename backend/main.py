@@ -199,6 +199,9 @@ async def google_auth(auth_request: GoogleAuthRequest, db: AsyncSession = Depend
     2. Creates or updates user record in database
     3. Issues a JWT access token for subsequent API calls
     """
+    import time
+    auth_start_time = time.time()
+
     # Log authentication attempt (no sensitive data)
     logger.info(
         "auth_attempt_started",
@@ -208,19 +211,30 @@ async def google_auth(auth_request: GoogleAuthRequest, db: AsyncSession = Depend
 
     try:
         # Verify Google token (includes timeout protection)
+        verify_start = time.time()
         user_info = await verify_google_token(auth_request.token)
+        verify_duration = (time.time() - verify_start) * 1000
+        logger.info("auth_step_verify_complete", duration_ms=round(verify_duration, 2))
 
         # Get or create user in database
+        db_start = time.time()
         user = await get_or_create_user(db, user_info)
+        db_duration = (time.time() - db_start) * 1000
+        logger.info("auth_step_database_complete", duration_ms=round(db_duration, 2))
 
         # Generate JWT token
+        jwt_start = time.time()
         access_token = create_access_token(data={"user_id": user.id})
+        jwt_duration = (time.time() - jwt_start) * 1000
+        logger.debug("auth_step_jwt_complete", duration_ms=round(jwt_duration, 2))
 
+        total_auth_time = (time.time() - auth_start_time) * 1000
         logger.info(
             "auth_success",
             user_id=user.id,
             email_domain=user.email.split('@')[1] if '@' in user.email else "unknown",
-            is_new_user=user.created_at > (datetime.utcnow() - timedelta(seconds=5))
+            is_new_user=user.created_at > (datetime.utcnow() - timedelta(seconds=5)),
+            total_duration_ms=round(total_auth_time, 2)
         )
 
         return AuthResponse(

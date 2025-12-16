@@ -9,12 +9,21 @@ const Login = () => {
   const [errorMessage, setErrorMessage] = useState(null);
 
   const handleGoogleSuccess = async (credentialResponse) => {
+    const handleStart = performance.now();
+    console.log('[Login] Google OAuth success, starting login flow');
+
     try {
       setIsLoggingIn(true);
       setErrorMessage(null);
+
+      const loginStart = performance.now();
       await loginWithGoogle(credentialResponse.credential);
+      const loginDuration = performance.now() - loginStart;
+
+      const totalDuration = performance.now() - handleStart;
+      console.log('[Login] Complete login flow duration:', totalDuration.toFixed(2), 'ms');
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('[Login] Login error:', error);
       setErrorMessage(error.message || 'An unexpected error occurred. Please try again.');
       setIsLoggingIn(false);
     }

@@ -21,18 +21,27 @@ export const AuthProvider = ({ children }) => {
   const API_URL = import.meta.env.VITE_API_URL || '';
 
   useEffect(() => {
-    if (token) {
+    if (token && !user) {
+      // Only fetch if we don't already have user data
+      // This prevents redundant API call after login
+      console.log('[Auth] Token exists but no user data, fetching user info');
       fetchUserInfo();
+    } else if (token && user) {
+      // We already have user data (from login), skip fetch
+      console.log('[Auth] Token and user both exist, skipping redundant fetch');
+      setLoading(false);
     } else {
+      // No token, not logged in
       setLoading(false);
     }
   }, [token]);
 
   const fetchUserInfo = async () => {
+    const startTime = performance.now();
     try {
-      console.log('Fetching user info with token:', token ? 'Token exists' : 'No token');
-      console.log('API URL:', API_URL);
+      console.log('[Auth] fetchUserInfo START');
 
+      const fetchStart = performance.now();
       const response = await fetchWithTimeout(
         `${API_URL}/api/auth/me`,
         {
@@ -43,23 +52,26 @@ export const AuthProvider = ({ children }) => {
         10000 // 10 second timeout for auth check
       );
 
-      console.log('Auth check response status:', response.status);
+      const fetchDuration = performance.now() - fetchStart;
+      console.log('[Auth] fetchUserInfo API call complete:', fetchDuration.toFixed(2), 'ms');
 
       if (response.ok) {
+        const parseStart = performance.now();
         const userData = await response.json();
-        console.log('User data fetched successfully');
+        const parseDuration = performance.now() - parseStart;
+        console.log('[Auth] JSON parse complete:', parseDuration.toFixed(2), 'ms');
+
         setUser(userData);
+        const totalDuration = performance.now() - startTime;
+        console.log('[Auth] fetchUserInfo TOTAL:', totalDuration.toFixed(2), 'ms');
       } else {
-        console.error('Auth check failed with status:', response.status);
-        const errorText = await response.text();
-        console.error('Error response:', errorText);
+        console.error('[Auth] Auth check failed with status:', response.status);
         logout();
       }
     } catch (error) {
-      console.error('Failed to fetch user info:', error);
-      console.error('Error details:', error.message);
+      console.error('[Auth] fetchUserInfo failed:', error);
       if (error instanceof FetchTimeoutError) {
-        console.error('Auth check timed out after', error.timeout, 'ms');
+        console.error('[Auth] Timeout after', error.timeout, 'ms');
       }
       logout();
     } finally {
@@ -68,9 +80,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   const loginWithGoogle = async (googleToken) => {
+    const loginStartTime = performance.now();
     try {
-      console.log('Attempting Google login, API URL:', API_URL);
+      console.log('[Auth] loginWithGoogle START');
 
+      const apiStart = performance.now();
       const response = await fetchWithTimeout(
         `${API_URL}/api/auth/google`,
         {
@@ -83,11 +97,12 @@ export const AuthProvider = ({ children }) => {
         45000 // 45 second timeout for login (allow time for database locks to resolve)
       );
 
-      console.log('Login response status:', response.status);
+      const apiDuration = performance.now() - apiStart;
+      console.log('[Auth] /api/auth/google API call complete:', apiDuration.toFixed(2), 'ms');
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Login failed:', errorText);
+        console.error('[Auth] Login failed:', errorText);
 
         // Provide specific error message based on status code
         if (response.status === 504) {
@@ -99,12 +114,22 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Authentication failed. Please try again.');
       }
 
+      const parseStart = performance.now();
       const data = await response.json();
-      console.log('Login successful, storing token');
+      const parseDuration = performance.now() - parseStart;
+      console.log('[Auth] JSON parse complete:', parseDuration.toFixed(2), 'ms');
+
+      const stateStart = performance.now();
+      // Store in localStorage first, then update state
+      // React 18 auto-batches these state updates
+      localStorage.setItem('access_token', data.access_token);
       setToken(data.access_token);
       setUser(data.user);
-      localStorage.setItem('access_token', data.access_token);
-      console.log('Token stored in localStorage');
+      const stateDuration = performance.now() - stateStart;
+      console.log('[Auth] State updates complete:', stateDuration.toFixed(2), 'ms');
+
+      const totalLoginDuration = performance.now() - loginStartTime;
+      console.log('[Auth] loginWithGoogle TOTAL:', totalLoginDuration.toFixed(2), 'ms');
 
       return data;
     } catch (error) {

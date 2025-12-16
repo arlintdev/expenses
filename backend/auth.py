@@ -63,6 +63,9 @@ async def verify_google_token(token: str) -> dict:
     Raises:
         HTTPException: If token is invalid, expired, or verification times out
     """
+    import time
+    start_time = time.time()
+
     try:
         # Create requests session with 10-second timeout
         session = requests_lib.Session()
@@ -72,11 +75,14 @@ async def verify_google_token(token: str) -> dict:
         request = requests.Request(session=session)
 
         # Verify token with timeout protection
+        logger.debug("google_token_verification_start")
         idinfo = id_token.verify_oauth2_token(
             token,
             request,
             GOOGLE_CLIENT_ID
         )
+        verification_time = (time.time() - start_time) * 1000
+        logger.info("google_token_verification_complete", duration_ms=round(verification_time, 2))
 
         if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
             logger.warning(
@@ -140,17 +146,23 @@ async def get_or_create_user(db: AsyncSession, google_user_data: dict) -> User:
     Raises:
         HTTPException: If database operations fail after retries
     """
+    import time
+    start_time = time.time()
+
     max_retries = 3
     retry_delay = 0.5  # Start with 500ms delay
 
     for attempt in range(max_retries):
         try:
             # Check if user exists - explicitly load all columns
+            db_lookup_start = time.time()
             result = await db.execute(
                 select(User)
                 .filter(User.google_id == google_user_data['google_id'])
             )
             user = result.scalar_one_or_none()
+            db_lookup_time = (time.time() - db_lookup_start) * 1000
+            logger.debug("user_lookup_complete", duration_ms=round(db_lookup_time, 2))
 
             if not user:
                 # Create new user
@@ -179,10 +191,12 @@ async def get_or_create_user(db: AsyncSession, google_user_data: dict) -> User:
                     await db.refresh(user)
                     logger.debug("user_updated", user_id=user.id)
                 else:
+                    # Only refresh if we didn't just update (avoid redundant query)
+                    await db.refresh(user)
                     logger.debug("user_unchanged", user_id=user.id)
 
-            # Refresh user to ensure all columns are loaded (including updated_at)
-            await db.refresh(user)
+            total_time = (time.time() - start_time) * 1000
+            logger.info("get_or_create_user_complete", duration_ms=round(total_time, 2), is_new=not user)
             return user
 
         except OperationalError as e:
