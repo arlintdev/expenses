@@ -1415,15 +1415,32 @@ async def submit_csv(
                 db.add(db_expense)
                 await db.flush()
 
-                # Create tags if provided
+                # Create tags if provided (using new UserTag + ExpenseTag system)
                 if parsed_expense.get("tags"):
                     for tag_name in parsed_expense["tags"]:
                         if tag_name and tag_name.strip():
-                            db_tag = Tag(
-                                name=tag_name.strip(),
-                                expense_id=db_expense.id
+                            tag_name = tag_name.strip()
+
+                            # Get or create UserTag
+                            user_tag_result = await db.execute(
+                                select(UserTag).filter(
+                                    UserTag.user_id == current_user.id,
+                                    UserTag.name == tag_name
+                                )
                             )
-                            db.add(db_tag)
+                            user_tag = user_tag_result.scalar_one_or_none()
+
+                            if not user_tag:
+                                user_tag = UserTag(name=tag_name, user_id=current_user.id)
+                                db.add(user_tag)
+                                await db.flush()
+
+                            # Create ExpenseTag relationship
+                            expense_tag = ExpenseTag(
+                                expense_id=db_expense.id,
+                                user_tag_id=user_tag.id
+                            )
+                            db.add(expense_tag)
 
                 await db.flush()
                 expense_id = db_expense.id
@@ -1561,15 +1578,32 @@ async def submit_csv_stream(
                     stream_db.add(db_expense)
                     await stream_db.flush()
 
-                    # Create tags if provided
+                    # Create tags if provided (using new UserTag + ExpenseTag system)
                     if parsed_expense.get("tags"):
                         for tag_name in parsed_expense["tags"]:
                             if tag_name and tag_name.strip():
-                                db_tag = Tag(
-                                    name=tag_name.strip(),
-                                    expense_id=db_expense.id
+                                tag_name = tag_name.strip()
+
+                                # Get or create UserTag
+                                user_tag_result = await stream_db.execute(
+                                    select(UserTag).filter(
+                                        UserTag.user_id == user_id,
+                                        UserTag.name == tag_name
+                                    )
                                 )
-                                stream_db.add(db_tag)
+                                user_tag = user_tag_result.scalar_one_or_none()
+
+                                if not user_tag:
+                                    user_tag = UserTag(name=tag_name, user_id=user_id)
+                                    stream_db.add(user_tag)
+                                    await stream_db.flush()
+
+                                # Create ExpenseTag relationship
+                                expense_tag = ExpenseTag(
+                                    expense_id=db_expense.id,
+                                    user_tag_id=user_tag.id
+                                )
+                                stream_db.add(expense_tag)
 
                     await stream_db.flush()
                     await stream_db.commit()
