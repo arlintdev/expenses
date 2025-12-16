@@ -173,10 +173,13 @@ async def get_or_create_user(db: AsyncSession, google_user_data: dict) -> User:
 
                 if needs_update:
                     await db.commit()
+                    await db.refresh(user)
                     logger.debug("user_updated", user_id=user.id)
                 else:
                     logger.debug("user_unchanged", user_id=user.id)
 
+            # Refresh user to ensure all columns are loaded (including updated_at)
+            await db.refresh(user)
             return user
 
         except OperationalError as e:
