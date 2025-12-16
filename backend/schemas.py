@@ -35,8 +35,7 @@ class ExpenseCreate(ExpenseBase):
     pass
 
 class ExpenseResponse(ExpenseBase):
-    id: int
-    uuid: str
+    id: str  # UUIDv6 string
     user_id: int
     materials: Optional[str]
     hours: Optional[float]

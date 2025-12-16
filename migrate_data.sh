@@ -104,10 +104,21 @@ fi
 echo ""
 echo "Step 3: Exporting SQLite data..."
 BACKUP_FILE="./data/sqlite_backup_$(date +%Y%m%d_%H%M%S).sql"
-docker compose exec -T expense-tracker sqlite3 /app/data/expenses.db .dump > "$BACKUP_FILE" 2>/dev/null || {
-    echo -e "${YELLOW}Warning: Could not export from running container. Trying direct access...${NC}"
-    sqlite3 ./data/expenses.db .dump > "$BACKUP_FILE"
-}
+
+# Try from running container first
+if docker compose exec -T expense-tracker sqlite3 /app/data/expenses.db .dump > "$BACKUP_FILE" 2>/dev/null; then
+    echo -e "${GREEN}✓ SQLite data exported from container${NC}"
+else
+    echo -e "${YELLOW}Container not running. Using docker run to export...${NC}"
+    # Use a temporary container with sqlite3 to export the data
+    docker run --rm -v "$(pwd)/data:/data" alpine:latest sh -c "apk add --no-cache sqlite > /dev/null 2>&1 && sqlite3 /data/expenses.db .dump" > "$BACKUP_FILE"
+fi
+
+if [ ! -s "$BACKUP_FILE" ]; then
+    echo -e "${RED}Error: Failed to export SQLite data${NC}"
+    exit 1
+fi
+
 echo -e "${GREEN}✓ SQLite data exported to $BACKUP_FILE${NC}"
 
 # Step 4: Convert SQLite dump to PostgreSQL format

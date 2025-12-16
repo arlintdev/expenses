@@ -103,7 +103,7 @@ class ExpenseTag(Base):
     __tablename__ = "expense_tags"
 
     id = Column(Integer, primary_key=True, index=True)
-    expense_id = Column(Integer, ForeignKey("expenses.id", ondelete="CASCADE"), nullable=False)
+    expense_id = Column(String(36), ForeignKey("expenses.id", ondelete="CASCADE"), nullable=False)
     user_tag_id = Column(Integer, ForeignKey("user_tags.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -116,7 +116,7 @@ class Tag(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, index=True)
-    expense_id = Column(Integer, ForeignKey("expenses.id", ondelete="CASCADE"), nullable=False)
+    expense_id = Column(String(36), ForeignKey("expenses.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     expense = relationship("Expense", back_populates="tags")
@@ -124,8 +124,7 @@ class Tag(Base):
 class Expense(Base):
     __tablename__ = "expenses"
 
-    id = Column(Integer, primary_key=True, index=True)
-    uuid = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid6.uuid6()))
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid6.uuid6()), index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     description = Column(String, nullable=False)
     recipient = Column(String, nullable=False)
