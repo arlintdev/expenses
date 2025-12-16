@@ -493,6 +493,100 @@
     width: 32px;
     height: 32px;
   }
+
+  .floating-add-button.pulse-animation {
+    animation: pulse-button 2s ease-in-out infinite;
+  }
+
+  .first-expense-prompt {
+    position: fixed;
+    bottom: 110px;
+    right: 32px;
+    background: white;
+    color: #667eea;
+    padding: 12px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap;
+    z-index: 999;
+    animation: bounce-prompt 2s ease-in-out infinite;
+  }
+
+  .first-expense-prompt::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    right: 24px;
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 8px solid white;
+  }
+
+  @keyframes pulse-button {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 4px 20px rgba(102, 126, 234, 0.5);
+    }
+    50% {
+      transform: scale(1.1);
+      box-shadow: 0 6px 28px rgba(102, 126, 234, 0.8);
+    }
+  }
+
+  @keyframes bounce-prompt {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-8px);
+    }
+  }
+}
+
+/* Mobile first expense prompt */
+@media (max-width: 767px) {
+  .first-expense-prompt {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    color: #667eea;
+    padding: 10px 16px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    font-weight: 600;
+    font-size: 13px;
+    white-space: nowrap;
+    z-index: 999;
+    animation: bounce-prompt-mobile 2s ease-in-out infinite;
+  }
+
+  .first-expense-prompt::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 8px solid white;
+  }
+
+  @keyframes bounce-prompt-mobile {
+    0%, 100% {
+      transform: translateX(-50%) translateY(0);
+    }
+    50% {
+      transform: translateX(-50%) translateY(-8px);
+    }
+  }
 }
 
 /* Link styling for sidebar navigation */

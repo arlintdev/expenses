@@ -249,8 +249,13 @@ function AppContent() {
         apiUrl={API_URL}
       />
 
+      {totalExpenses === 0 && (
+        <div className="first-expense-prompt">
+          Add your first expense here
+        </div>
+      )}
       <button
-        className="floating-add-button"
+        className={`floating-add-button ${totalExpenses === 0 ? 'pulse-animation' : ''}`}
         onClick={() => setIsModalOpen(true)}
         aria-label="Add expense"
       >
