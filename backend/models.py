@@ -20,6 +20,8 @@ else:
     ASYNC_DATABASE_URL = DATABASE_URL
 
 # Create async engine with SQLite optimizations
+# Note: SQLite uses NullPool by default (no connection pooling)
+# Connection pooling doesn't apply to SQLite as it's file-based
 engine = create_async_engine(
     ASYNC_DATABASE_URL,
     echo=False,
@@ -29,8 +31,6 @@ engine = create_async_engine(
     },
     pool_pre_ping=True,  # Verify connections before using them
     pool_recycle=3600,  # Recycle connections after 1 hour
-    pool_size=10,  # Maximum number of connections in the pool
-    max_overflow=20,  # Allow up to 20 additional connections when pool is exhausted
 )
 
 # Enable WAL mode for SQLite to allow concurrent reads during writes
