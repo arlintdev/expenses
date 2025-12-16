@@ -1269,8 +1269,9 @@ async def process_image(
 
         # Get user's existing tags for context
         result = await db.execute(
-            select(Tag.name)
-            .join(Expense)
+            select(UserTag.name)
+            .join(ExpenseTag, UserTag.id == ExpenseTag.user_tag_id)
+            .join(Expense, ExpenseTag.expense_id == Expense.id)
             .filter(Expense.user_id == current_user.id)
             .distinct()
         )
