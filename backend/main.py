@@ -231,7 +231,8 @@ async def google_auth(auth_request: GoogleAuthRequest, db: AsyncSession = Depend
                 email=user.email,
                 name=user.name,
                 picture=user.picture,
-                created_at=user.created_at
+                created_at=user.created_at,
+                updated_at=user.updated_at
             )
         )
 
