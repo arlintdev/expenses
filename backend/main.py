@@ -184,7 +184,6 @@ def get_config():
     Get public configuration for the frontend.
     """
     client_id = os.getenv("GOOGLE_CLIENT_ID", "")
-    print(f"📋 /api/config called - Returning Client ID: {client_id[:20]}..." if client_id else "📋 /api/config called - Client ID is EMPTY!")
     return {
         "googleClientId": client_id
     }
@@ -528,11 +527,9 @@ async def create_expense(
                 .where(Expense.id == expense_id)
             )
             created_expense = result.unique().scalar_one()
-            print(f"Created expense {expense_id} with tags: {[tag.name for tag in created_expense.tags]}")
             return created_expense
     except Exception as e:
         await db.rollback()
-        print(f"Error creating expense: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to create expense: {str(e)}")
@@ -602,12 +599,10 @@ async def get_expenses(
                 _ = [tag.name for tag in expense.tags]
                 valid_expenses.append(expense)
             except Exception as e:
-                print(f"Skipping expense {expense.id} due to invalid tags: {e}")
                 continue
 
         return valid_expenses
     except Exception as e:
-        print(f"Error fetching expenses: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to fetch expenses: {str(e)}")
@@ -657,7 +652,6 @@ async def update_expense(
         if expense is None:
             raise HTTPException(status_code=404, detail="Expense not found")
 
-        print(f"Updating expense {expense_id} with data: {expense_update}")
 
         # Update allowed fields
         if "description" in expense_update:
@@ -685,7 +679,6 @@ async def update_expense(
 
         # Handle tags update
         if "tags" in expense_update:
-            print(f"Updating tags to: {expense_update['tags']}")
             # Delete existing tags
             await db.execute(
                 delete(Tag).where(Tag.expense_id == expense_id)
@@ -718,16 +711,12 @@ async def update_expense(
             reloaded_expense = result.unique().scalar_one()
 
             # Debug: print tags before returning
-            print(f"Successfully updated expense {expense_id}")
-            print(f"Reloaded expense tags objects: {reloaded_expense.tags}")
-            print(f"Reloaded expense tags names: {[tag.name for tag in reloaded_expense.tags]}")
 
             return reloaded_expense
     except HTTPException:
         raise
     except Exception as e:
         await db.rollback()
-        print(f"Error updating expense {expense_id}: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to update expense: {str(e)}")
@@ -892,13 +881,11 @@ async def delete_tag(
         await db.delete(user_tag)
 
         await db.commit()
-        print(f"Successfully deleted tag '{tag_name}' for user {current_user.id}")
         return None
     except HTTPException:
         raise
     except Exception as e:
         await db.rollback()
-        print(f"Error deleting tag '{tag_name}': {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to delete tag: {str(e)}")
 
 @app.post("/api/cleanup-orphaned-tags", status_code=204)
@@ -923,11 +910,9 @@ async def cleanup_orphaned_tags(
             count += 1
 
         await db.commit()
-        print(f"Cleaned up {count} orphaned tags")
         return None
     except Exception as e:
         await db.rollback()
-        print(f"Error cleaning orphaned tags: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to cleanup: {str(e)}")
 
 @app.post("/api/transcribe-audio")
@@ -970,7 +955,6 @@ async def process_image(
         image_base64 = base64.b64encode(image_content).decode('utf-8')
         media_type = image.content_type or 'image/jpeg'
 
-        print(f"Processing image with type: {media_type}, size: {len(image_content)} bytes")
 
         # Get user's existing tags for context
         result = await db.execute(
@@ -990,7 +974,6 @@ async def process_image(
             image_base64, media_type, tag_names, user_context
         )
 
-        print(f"Extracted expense data: {parsed_expense}")
 
         return VoiceTranscriptionResponse(
             transcription="[Image processed]",
@@ -1000,7 +983,6 @@ async def process_image(
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
-        print(f"Error processing image: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to process image: {str(e)}")

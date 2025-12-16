@@ -49,13 +49,9 @@ class ExpenseResponse(ExpenseBase):
     @classmethod
     def extract_tag_names(cls, v):
         """Convert Tag objects to list of tag names."""
-        print(f"Validator called with: {v}, type: {type(v)}")
         if isinstance(v, list) and len(v) > 0:
             if hasattr(v[0], 'name'):
-                result = [tag.name for tag in v]
-                print(f"Extracted tag names: {result}")
-                return result
-        print(f"Returning as-is: {v}")
+                return [tag.name for tag in v]
         return v if v else []
 
 class VoiceTranscriptionRequest(BaseModel):
