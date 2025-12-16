@@ -23,7 +23,13 @@ config = context.config
 
 # Set the database URL from environment variable
 database_url = os.getenv("DATABASE_URL", "sqlite:///./expenses.db")
-config.set_main_option("sqlalchemy.url", database_url)
+
+# Convert async database URLs to sync for Alembic
+# Alembic runs synchronously and can't use async drivers
+sync_database_url = database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+sync_database_url = sync_database_url.replace("sqlite+aiosqlite://", "sqlite://")
+
+config.set_main_option("sqlalchemy.url", sync_database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
