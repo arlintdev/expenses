@@ -36,6 +36,7 @@ class ExpenseCreate(ExpenseBase):
 
 class ExpenseResponse(ExpenseBase):
     id: int
+    uuid: str
     user_id: int
     materials: Optional[str]
     hours: Optional[float]

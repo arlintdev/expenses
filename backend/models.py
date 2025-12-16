@@ -2,10 +2,13 @@ from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, eve
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from datetime import datetime
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import uuid6
+import uuid
 
 # Load .env from the backend directory
 env_path = Path(__file__).parent / '.env'
