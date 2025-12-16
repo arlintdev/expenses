@@ -10,6 +10,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
+import asyncio
 from models import User, get_db
 
 # Get structured logger for auth module
@@ -125,26 +127,83 @@ async def verify_google_token(token: str) -> dict:
         )
 
 async def get_or_create_user(db: AsyncSession, google_user_data: dict) -> User:
-    result = await db.execute(select(User).filter(User.google_id == google_user_data['google_id']))
-    user = result.scalar_one_or_none()
+    """
+    Get or create user with retry logic for database locks.
 
-    if not user:
-        user = User(
-            google_id=google_user_data['google_id'],
-            email=google_user_data['email'],
-            name=google_user_data.get('name'),
-            picture=google_user_data.get('picture')
-        )
-        db.add(user)
-        await db.commit()
-        await db.refresh(user)
-    else:
-        # Update user info if changed
-        user.name = google_user_data.get('name')
-        user.picture = google_user_data.get('picture')
-        await db.commit()
+    Args:
+        db: Database session
+        google_user_data: User data from Google OAuth
 
-    return user
+    Returns:
+        User: Created or existing user
+
+    Raises:
+        HTTPException: If database operations fail after retries
+    """
+    max_retries = 3
+    retry_delay = 0.5  # Start with 500ms delay
+
+    for attempt in range(max_retries):
+        try:
+            # Check if user exists
+            result = await db.execute(select(User).filter(User.google_id == google_user_data['google_id']))
+            user = result.scalar_one_or_none()
+
+            if not user:
+                # Create new user
+                user = User(
+                    google_id=google_user_data['google_id'],
+                    email=google_user_data['email'],
+                    name=google_user_data.get('name'),
+                    picture=google_user_data.get('picture')
+                )
+                db.add(user)
+                await db.commit()
+                await db.refresh(user)
+                logger.info("user_created", user_id=user.id)
+            else:
+                # Update user info if changed
+                user.name = google_user_data.get('name')
+                user.picture = google_user_data.get('picture')
+                await db.commit()
+                logger.debug("user_updated", user_id=user.id)
+
+            return user
+
+        except OperationalError as e:
+            # Database is locked
+            if "database is locked" in str(e).lower() and attempt < max_retries - 1:
+                logger.warning(
+                    "database_locked_retry",
+                    attempt=attempt + 1,
+                    max_retries=max_retries,
+                    delay_ms=retry_delay * 1000
+                )
+                await asyncio.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+                await db.rollback()  # Rollback the failed transaction
+                continue
+            else:
+                logger.error(
+                    "database_operation_failed",
+                    error=str(e),
+                    attempt=attempt + 1
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Database is temporarily unavailable. Please try again in a moment."
+                )
+        except Exception as e:
+            logger.error(
+                "get_or_create_user_error",
+                error=str(e),
+                error_type=type(e).__name__
+            )
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create or retrieve user account."
+            )
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),

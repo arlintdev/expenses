@@ -93,6 +93,9 @@ export const AuthProvider = ({ children }) => {
         if (response.status === 504) {
           throw new Error('Google authentication service is not responding. Please try again.');
         }
+        if (response.status === 503) {
+          throw new Error('Database is temporarily unavailable. Please try again in a moment.');
+        }
         throw new Error('Authentication failed. Please try again.');
       }
 

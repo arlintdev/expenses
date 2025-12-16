@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, event
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -19,8 +19,31 @@ if DATABASE_URL.startswith("sqlite://"):
 else:
     ASYNC_DATABASE_URL = DATABASE_URL
 
-# Create async engine
-engine = create_async_engine(ASYNC_DATABASE_URL, echo=False)
+# Create async engine with SQLite optimizations
+engine = create_async_engine(
+    ASYNC_DATABASE_URL,
+    echo=False,
+    connect_args={
+        "timeout": 30,  # 30 second timeout for database locks
+        "check_same_thread": False,  # Allow sharing connection across threads (safe with async)
+    },
+    pool_pre_ping=True,  # Verify connections before using them
+    pool_recycle=3600,  # Recycle connections after 1 hour
+)
+
+# Enable WAL mode for SQLite to allow concurrent reads during writes
+@event.listens_for(engine.sync_engine, "connect")
+def set_sqlite_pragma(dbapi_conn, connection_record):
+    """Set SQLite pragmas for better concurrency and performance."""
+    cursor = dbapi_conn.cursor()
+    # WAL mode allows multiple readers even during a write
+    cursor.execute("PRAGMA journal_mode=WAL")
+    # Increase cache size for better performance (10MB)
+    cursor.execute("PRAGMA cache_size=-10000")
+    # Set busy timeout to 30 seconds
+    cursor.execute("PRAGMA busy_timeout=30000")
+    cursor.close()
+
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 Base = declarative_base()
