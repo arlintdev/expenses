@@ -114,6 +114,22 @@ function AppContent() {
             </svg>
             <span>Settings</span>
           </Link>
+
+          {user?.is_admin && (
+            <Link
+              to="/admin"
+              className={`nav-link ${activeTab === 'admin' ? 'active' : ''}`}
+              onClick={() => setActiveTab('admin')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+              <span>Admin</span>
+            </Link>
+          )}
         </nav>
 
         <div className="sidebar-footer">
@@ -216,6 +232,7 @@ function AppContent() {
           <Route path="/tags" element={<TagsRoute apiUrl={API_URL} />} />
           <Route path="/categories" element={<Navigate to="/tags" replace />} />
           <Route path="/settings" element={<SettingsRoute apiUrl={API_URL} />} />
+          <Route path="/admin" element={<AdminRoute apiUrl={API_URL} />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
