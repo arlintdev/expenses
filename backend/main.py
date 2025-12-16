@@ -124,7 +124,10 @@ async def log_requests(request: Request, call_next):
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_event():
-    # Check if we need to migrate from SQLite to PostgreSQL
+    # Initialize database FIRST (create tables if needed)
+    await init_db()
+
+    # THEN check if we need to migrate from SQLite to PostgreSQL
     try:
         from models import is_postgres
         if is_postgres:
@@ -134,9 +137,6 @@ async def startup_event():
                 logger.info("sqlite_to_postgres_migration_completed")
     except Exception as e:
         logger.warning("migration_check_failed", error=str(e), message="Continuing with initialization")
-
-    # Initialize database (create tables if needed)
-    await init_db()
 
     # Verify database connection
     try:
