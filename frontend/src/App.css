@@ -600,6 +600,16 @@
   border-right-color: #404040;
 }
 
+[data-theme="dark"] .first-expense-prompt {
+  background: #2a2a2a;
+  color: #8b9bff;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+[data-theme="dark"] .first-expense-prompt::after {
+  border-top-color: #2a2a2a;
+}
+
 [data-theme="dark"] .sidebar-header {
   border-bottom-color: #404040;
 }
