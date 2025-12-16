@@ -11,7 +11,7 @@ import uuid6
 
 # revision identifiers, used by Alembic.
 revision = 'migrate_all_to_uuid'
-down_revision = None
+down_revision = 'cd67a086746f'  # Previous migration
 branch_labels = None
 depends_on = None
 
