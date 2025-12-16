@@ -524,13 +524,13 @@ async def get_spending_by_tag(
                 percentage=round(percentage, 2)
             ))
 
-        # Handle expenses without tags
+        # Handle expenses without tags (expenses with no ExpenseTag entries)
         untagged_query = select(
             func.sum(Expense.amount).label('total_amount'),
             func.count(Expense.id).label('expense_count')
-        ).outerjoin(Tag).filter(
+        ).outerjoin(ExpenseTag).filter(
             Expense.user_id == current_user.id,
-            Tag.id == None
+            ExpenseTag.id == None
         )
 
         if date_from:
