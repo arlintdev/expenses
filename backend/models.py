@@ -114,18 +114,6 @@ class ExpenseTag(Base):
     expense = relationship("Expense", back_populates="expense_tags")
     user_tag = relationship("UserTag", backref="expense_tags")
 
-# Keep old Tag model for backward compatibility during migration
-class Tag(Base):
-    __tablename__ = "tags"
-
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid6.uuid6()), index=True)
-    name = Column(String, nullable=False, index=True)
-    expense_id = Column(String(36), ForeignKey("expenses.id", ondelete="CASCADE"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-
-    expense = relationship("Expense", back_populates="tags")
-
 class Expense(Base):
     __tablename__ = "expenses"
 

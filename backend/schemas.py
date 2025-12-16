@@ -51,10 +51,14 @@ class ExpenseResponse(ExpenseBase):
     @field_validator('tags', mode='before')
     @classmethod
     def extract_tag_names(cls, v):
-        """Convert Tag objects to list of tag names."""
+        """Convert ExpenseTag objects to list of tag names."""
         if isinstance(v, list) and len(v) > 0:
-            if hasattr(v[0], 'name'):
-                return [tag.name for tag in v]
+            # Handle ExpenseTag objects (new system)
+            if hasattr(v[0], 'user_tag'):
+                return [et.user_tag.name for et in v if et.user_tag]
+            # Handle direct tag name strings (already processed)
+            if isinstance(v[0], str):
+                return v
         return v if v else []
 
 class VoiceTranscriptionRequest(BaseModel):

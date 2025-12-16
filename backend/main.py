@@ -17,7 +17,7 @@ import structlog
 import csv
 import io
 
-from models import init_db, get_db, Expense, User, Tag, UserTag, ExpenseTag, AsyncSessionLocal
+from models import init_db, get_db, Expense, User, UserTag, ExpenseTag, AsyncSessionLocal
 from schemas import (
     ExpenseCreate, ExpenseResponse, VoiceTranscriptionResponse,
     GoogleAuthRequest, AuthResponse, UserResponse,
@@ -622,29 +622,48 @@ async def create_expense(
         db.add(db_expense)
         await db.flush()  # Get expense ID without committing
 
-        # Create tags if provided
+        # Create tags if provided (using new UserTag + ExpenseTag system)
         if expense.tags:
             for tag_name in expense.tags:
                 if tag_name and tag_name.strip():
-                    db_tag = Tag(
-                        name=tag_name.strip(),
-                        expense_id=db_expense.id
+                    tag_name = tag_name.strip()
+
+                    # Get or create UserTag
+                    user_tag_result = await db.execute(
+                        select(UserTag).filter(
+                            UserTag.user_id == current_user.id,
+                            UserTag.name == tag_name
+                        )
                     )
-                    db.add(db_tag)
+                    user_tag = user_tag_result.scalar_one_or_none()
+
+                    if not user_tag:
+                        # Create new UserTag
+                        user_tag = UserTag(
+                            name=tag_name,
+                            user_id=current_user.id
+                        )
+                        db.add(user_tag)
+                        await db.flush()  # Get UserTag ID
+
+                    # Create ExpenseTag relationship
+                    expense_tag = ExpenseTag(
+                        expense_id=db_expense.id,
+                        user_tag_id=user_tag.id
+                    )
+                    db.add(expense_tag)
 
         await db.commit()
         expense_id = db_expense.id
-        await db.close()
 
-        # Reload with fresh session to get tags
-        async with AsyncSessionLocal() as fresh_db:
-            result = await fresh_db.execute(
-                select(Expense)
-                .options(joinedload(Expense.tags))
-                .where(Expense.id == expense_id)
-            )
-            created_expense = result.unique().scalar_one()
-            return created_expense
+        # Reload expense with tags
+        result = await db.execute(
+            select(Expense)
+            .options(joinedload(Expense.expense_tags))
+            .where(Expense.id == expense_id)
+        )
+        created_expense = result.unique().scalar_one()
+        return created_expense
     except Exception as e:
         await db.rollback()
         import traceback
@@ -674,8 +693,8 @@ async def get_expenses(
             ~Expense.description.like("[Tag holder for:%")  # Exclude tag holders
         )
 
-        # Add eager loading for tags with proper join
-        query = query.options(joinedload(Expense.tags))
+        # Add eager loading for expense_tags with proper join
+        query = query.options(joinedload(Expense.expense_tags).joinedload(ExpenseTag.user_tag))
 
         # Month/year filtering
         if year and month:
@@ -735,7 +754,7 @@ async def get_expense(
     """
     result = await db.execute(
         select(Expense)
-        .options(joinedload(Expense.tags))
+        .options(joinedload(Expense.expense_tags).joinedload(ExpenseTag.user_tag))
         .filter(
             Expense.id == expense_id,
             Expense.user_id == current_user.id
@@ -759,7 +778,7 @@ async def update_expense(
     try:
         result = await db.execute(
             select(Expense)
-            .options(joinedload(Expense.tags))
+            .options(joinedload(Expense.expense_tags).joinedload(ExpenseTag.user_tag))
             .filter(
                 Expense.id == expense_id,
                 Expense.user_id == current_user.id
@@ -794,11 +813,11 @@ async def update_expense(
             elif isinstance(date_str, datetime):
                 expense.date = date_str
 
-        # Handle tags update
+        # Handle tags update (using new UserTag + ExpenseTag system)
         if "tags" in expense_update:
-            # Delete existing tags
+            # Delete existing expense_tags
             await db.execute(
-                delete(Tag).where(Tag.expense_id == expense_id)
+                delete(ExpenseTag).where(ExpenseTag.expense_id == expense_id)
             )
             await db.flush()
 
@@ -807,11 +826,32 @@ async def update_expense(
             if isinstance(tags, list):
                 for tag_name in tags:
                     if tag_name and tag_name.strip():
-                        db_tag = Tag(
-                            name=tag_name.strip(),
-                            expense_id=expense_id
+                        tag_name = tag_name.strip()
+
+                        # Get or create UserTag
+                        user_tag_result = await db.execute(
+                            select(UserTag).filter(
+                                UserTag.user_id == current_user.id,
+                                UserTag.name == tag_name
+                            )
                         )
-                        db.add(db_tag)
+                        user_tag = user_tag_result.scalar_one_or_none()
+
+                        if not user_tag:
+                            # Create new UserTag
+                            user_tag = UserTag(
+                                name=tag_name,
+                                user_id=current_user.id
+                            )
+                            db.add(user_tag)
+                            await db.flush()
+
+                        # Create ExpenseTag relationship
+                        expense_tag = ExpenseTag(
+                            expense_id=expense_id,
+                            user_tag_id=user_tag.id
+                        )
+                        db.add(expense_tag)
 
         await db.commit()
 
@@ -822,7 +862,7 @@ async def update_expense(
         async with AsyncSessionLocal() as fresh_db:
             result = await fresh_db.execute(
                 select(Expense)
-                .options(joinedload(Expense.tags))
+                .options(joinedload(Expense.expense_tags).joinedload(ExpenseTag.user_tag))
                 .where(Expense.id == expense_id)
             )
             reloaded_expense = result.unique().scalar_one()
@@ -1172,19 +1212,19 @@ async def cleanup_orphaned_tags(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Clean up orphaned tags that reference non-existent expenses.
+    Clean up orphaned expense_tags that reference non-existent expenses or user_tags.
     """
     try:
-        # Find and delete tags that reference expenses that don't exist
-        orphaned_tags_query = select(Tag).outerjoin(Expense).filter(
+        # Find and delete expense_tags that reference non-existent expenses
+        orphaned_query = select(ExpenseTag).outerjoin(Expense).filter(
             Expense.id == None
         )
-        result = await db.execute(orphaned_tags_query)
-        orphaned_tags = result.scalars().all()
+        result = await db.execute(orphaned_query)
+        orphaned = result.scalars().all()
 
         count = 0
-        for tag in orphaned_tags:
-            await db.delete(tag)
+        for expense_tag in orphaned:
+            await db.delete(expense_tag)
             count += 1
 
         await db.commit()
@@ -1391,7 +1431,7 @@ async def submit_csv(
                 # Reload expense with tags
                 expense_result = await db.execute(
                     select(Expense)
-                    .options(joinedload(Expense.tags))
+                    .options(joinedload(Expense.expense_tags).joinedload(ExpenseTag.user_tag))
                     .where(Expense.id == expense_id)
                 )
                 created_expense = expense_result.unique().scalar_one()
