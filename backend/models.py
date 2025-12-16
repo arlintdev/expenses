@@ -76,7 +76,7 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid6.uuid6()), index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     google_id = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=True)
@@ -91,9 +91,9 @@ class UserTag(Base):
     """Standalone tags that belong to a user, not tied to specific expenses."""
     __tablename__ = "user_tags"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid6.uuid6()), index=True)
     name = Column(String, nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="user_tags")
@@ -102,9 +102,9 @@ class ExpenseTag(Base):
     """Junction table for many-to-many relationship between expenses and user tags."""
     __tablename__ = "expense_tags"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid6.uuid6()), index=True)
     expense_id = Column(String(36), ForeignKey("expenses.id", ondelete="CASCADE"), nullable=False)
-    user_tag_id = Column(Integer, ForeignKey("user_tags.id", ondelete="CASCADE"), nullable=False)
+    user_tag_id = Column(String(36), ForeignKey("user_tags.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     expense = relationship("Expense", back_populates="expense_tags")
@@ -114,7 +114,7 @@ class ExpenseTag(Base):
 class Tag(Base):
     __tablename__ = "tags"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid6.uuid6()), index=True)
     name = Column(String, nullable=False, index=True)
     expense_id = Column(String(36), ForeignKey("expenses.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -125,7 +125,7 @@ class Expense(Base):
     __tablename__ = "expenses"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid6.uuid6()), index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
     description = Column(String, nullable=False)
     recipient = Column(String, nullable=False)
     materials = Column(String, nullable=True)

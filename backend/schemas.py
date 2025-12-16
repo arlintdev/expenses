@@ -36,7 +36,7 @@ class ExpenseCreate(ExpenseBase):
 
 class ExpenseResponse(ExpenseBase):
     id: str  # UUIDv6 string
-    user_id: int
+    user_id: str  # UUIDv6 string
     materials: Optional[str]
     hours: Optional[float]
     tags: List[str] = []
