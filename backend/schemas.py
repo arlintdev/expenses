@@ -9,6 +9,7 @@ class UserResponse(BaseModel):
     name: Optional[str]
     picture: Optional[str]
     created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -41,6 +42,7 @@ class ExpenseResponse(ExpenseBase):
     hours: Optional[float]
     tags: List[str] = []
     created_at: datetime
+    updated_at: datetime
     date: datetime
 
     model_config = {"from_attributes": True}

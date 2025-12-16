@@ -82,7 +82,8 @@ class User(Base):
     name = Column(String, nullable=True)
     picture = Column(String, nullable=True)
     expense_context = Column(String, nullable=True)  # Custom context for expense generation
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     expenses = relationship("Expense", back_populates="user", cascade="all, delete-orphan")
     user_tags = relationship("UserTag", back_populates="user", cascade="all, delete-orphan")
@@ -94,7 +95,8 @@ class UserTag(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid6.uuid6()), index=True)
     name = Column(String, nullable=False, index=True)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="user_tags")
 
@@ -105,7 +107,8 @@ class ExpenseTag(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid6.uuid6()), index=True)
     expense_id = Column(String(36), ForeignKey("expenses.id", ondelete="CASCADE"), nullable=False)
     user_tag_id = Column(String(36), ForeignKey("user_tags.id", ondelete="CASCADE"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     expense = relationship("Expense", back_populates="expense_tags")
     user_tag = relationship("UserTag", backref="expense_tags")
@@ -117,7 +120,8 @@ class Tag(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid6.uuid6()), index=True)
     name = Column(String, nullable=False, index=True)
     expense_id = Column(String(36), ForeignKey("expenses.id", ondelete="CASCADE"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     expense = relationship("Expense", back_populates="tags")
 
@@ -132,7 +136,8 @@ class Expense(Base):
     hours = Column(Float, nullable=True)
     amount = Column(Float, nullable=False)
     date = Column(DateTime, nullable=False, default=datetime.utcnow)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="expenses")
     tags = relationship("Tag", back_populates="expense", cascade="all, delete-orphan")  # Old relationship
