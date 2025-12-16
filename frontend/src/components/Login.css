@@ -88,32 +88,40 @@
   gap: 20px;
 }
 
-.google-login-wrapper {
+/* Custom Google Login Button */
+.custom-google-button {
   display: inline-flex;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-  border-radius: 12px;
-  overflow: hidden;
-  transition: transform 0.2s, box-shadow 0.2s;
-  transform: scale(1.3);
-  transform-origin: left center;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 40px;
+  background: white;
+  color: #1f1f1f;
+  border: none;
+  border-radius: 14px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 280px;
+  justify-content: center;
 }
 
-.google-login-wrapper:hover {
-  transform: scale(1.3) translateY(-4px);
+.custom-google-button:hover {
+  transform: translateY(-4px);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  background: #f8f9fa;
 }
 
-/* Override Google button styles for better theme integration */
-.google-login-wrapper > div {
-  border-radius: 12px !important;
-  box-shadow: none !important;
+.custom-google-button:active {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
 }
 
-.google-login-wrapper button {
-  padding: 16px 32px !important;
-  font-size: 18px !important;
-  font-weight: 600 !important;
-  border-radius: 12px !important;
+.google-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
 }
 
 /* Hero Features Grid */
@@ -326,16 +334,16 @@
     height: 16px;
   }
 
-  .google-login-wrapper {
+  .custom-google-button {
     width: 100%;
     max-width: 100%;
-    transform: scale(1.2);
-    display: flex;
-    justify-content: center;
+    min-width: unset;
+    padding: 16px 32px;
+    font-size: 16px;
   }
 
-  .google-login-wrapper:hover {
-    transform: scale(1.2) translateY(-2px);
+  .custom-google-button:hover {
+    transform: translateY(-2px);
   }
 
   .hero-features {
