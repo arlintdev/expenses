@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Request, Response
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Request, Response, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
@@ -941,7 +941,7 @@ async def get_user_tags(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get all user tags with their usage counts.
+    Get all user tags with their usage counts and spending amounts.
     """
     try:
         # Fetch all UserTags for this user
@@ -949,23 +949,176 @@ async def get_user_tags(
         result = await db.execute(user_tags_query)
         user_tags = result.scalars().all()
 
-        # Calculate usage counts for each tag by counting ExpenseTag relationships
-        tags_with_counts = []
+        # Calculate usage counts and total spending for each tag
+        tags_with_stats = []
         for user_tag in user_tags:
-            count_query = select(func.count(ExpenseTag.id)).filter(ExpenseTag.user_tag_id == user_tag.id)
-            count_result = await db.execute(count_query)
-            usage_count = count_result.scalar() or 0
+            # Count expenses and sum amounts
+            stats_query = select(
+                func.count(ExpenseTag.id).label('usage_count'),
+                func.coalesce(func.sum(Expense.amount), 0).label('total_amount')
+            ).select_from(ExpenseTag).outerjoin(
+                Expense, ExpenseTag.expense_id == Expense.id
+            ).filter(ExpenseTag.user_tag_id == user_tag.id)
 
-            tags_with_counts.append({
+            stats_result = await db.execute(stats_query)
+            stats = stats_result.one()
+
+            tags_with_stats.append({
+                "id": user_tag.id,
                 "name": user_tag.name,
-                "usage_count": usage_count,
+                "usage_count": stats.usage_count or 0,
+                "total_amount": float(stats.total_amount),
                 "created_at": user_tag.created_at.isoformat()
             })
 
-        return {"tags": tags_with_counts}
+        return {"tags": tags_with_stats}
     except Exception as e:
         logger.error("Error fetching user tags", error=str(e), user_id=current_user.id)
         raise HTTPException(status_code=500, detail="Failed to fetch tags")
+
+@app.patch("/api/tags/{tag_name}/rename")
+async def rename_tag(
+    tag_name: str,
+    new_name: str = Body(..., embed=True),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Rename a user tag. All expenses with this tag will be updated.
+    """
+    try:
+        # Validate new name
+        if not new_name or not new_name.strip():
+            raise HTTPException(status_code=400, detail="Tag name cannot be empty")
+
+        new_name = new_name.strip()
+
+        # Check if new name already exists
+        existing_tag = await db.execute(
+            select(UserTag).filter(
+                UserTag.user_id == current_user.id,
+                UserTag.name == new_name
+            )
+        )
+        if existing_tag.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail=f"Tag '{new_name}' already exists")
+
+        # Find the tag to rename
+        result = await db.execute(
+            select(UserTag).filter(
+                UserTag.user_id == current_user.id,
+                UserTag.name == tag_name
+            )
+        )
+        user_tag = result.scalar_one_or_none()
+
+        if not user_tag:
+            raise HTTPException(status_code=404, detail="Tag not found")
+
+        # Rename the tag
+        old_name = user_tag.name
+        user_tag.name = new_name
+        await db.commit()
+
+        logger.info(
+            "tag_renamed",
+            user_id=current_user.id,
+            old_name=old_name,
+            new_name=new_name
+        )
+
+        return {"message": f"Tag renamed from '{old_name}' to '{new_name}'", "new_name": new_name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to rename tag: {str(e)}")
+
+
+@app.post("/api/tags/merge")
+async def merge_tags(
+    source_tag: str = Body(...),
+    target_tag: str = Body(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Merge source tag into target tag. All expenses tagged with source will be
+    retagged with target, then source tag is deleted.
+    """
+    try:
+        if source_tag == target_tag:
+            raise HTTPException(status_code=400, detail="Cannot merge tag with itself")
+
+        # Find both tags
+        source_result = await db.execute(
+            select(UserTag).filter(
+                UserTag.user_id == current_user.id,
+                UserTag.name == source_tag
+            )
+        )
+        source_user_tag = source_result.scalar_one_or_none()
+
+        target_result = await db.execute(
+            select(UserTag).filter(
+                UserTag.user_id == current_user.id,
+                UserTag.name == target_tag
+            )
+        )
+        target_user_tag = target_result.scalar_one_or_none()
+
+        if not source_user_tag:
+            raise HTTPException(status_code=404, detail=f"Source tag '{source_tag}' not found")
+        if not target_user_tag:
+            raise HTTPException(status_code=404, detail=f"Target tag '{target_tag}' not found")
+
+        # Get all expenses that have the source tag
+        expense_tags_result = await db.execute(
+            select(ExpenseTag).filter(ExpenseTag.user_tag_id == source_user_tag.id)
+        )
+        expense_tags = expense_tags_result.scalars().all()
+
+        merged_count = 0
+        for expense_tag in expense_tags:
+            # Check if expense already has target tag
+            existing = await db.execute(
+                select(ExpenseTag).filter(
+                    ExpenseTag.expense_id == expense_tag.expense_id,
+                    ExpenseTag.user_tag_id == target_user_tag.id
+                )
+            )
+            if not existing.scalar_one_or_none():
+                # Update to target tag
+                expense_tag.user_tag_id = target_user_tag.id
+                merged_count += 1
+            else:
+                # Expense already has target tag, just delete the source tag relationship
+                await db.delete(expense_tag)
+
+        # Delete source tag
+        await db.delete(source_user_tag)
+        await db.commit()
+
+        logger.info(
+            "tags_merged",
+            user_id=current_user.id,
+            source_tag=source_tag,
+            target_tag=target_tag,
+            expenses_updated=merged_count
+        )
+
+        return {
+            "message": f"Merged '{source_tag}' into '{target_tag}'",
+            "expenses_updated": merged_count,
+            "source_tag": source_tag,
+            "target_tag": target_tag
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to merge tags: {str(e)}")
+
 
 @app.delete("/api/tags/{tag_name}", status_code=204)
 async def delete_tag(
