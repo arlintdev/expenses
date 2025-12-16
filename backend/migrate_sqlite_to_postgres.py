@@ -86,17 +86,36 @@ async def migrate_sqlite_to_postgres(sqlite_path: str, postgres_url: str) -> boo
                             migrated_rows[table] = 0
                             continue
 
-                        # Get column names
-                        columns = result.keys()
+                        # Get column names from SQLite
+                        sqlite_columns = list(result.keys())
 
-                        # Build insert statement
-                        placeholders = ", ".join([f":{col}" for col in columns])
-                        insert_sql = f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({placeholders})"
+                        # Get column names from PostgreSQL target table
+                        postgres_inspector = inspect(postgres_engine)
+                        postgres_columns = [col['name'] for col in postgres_inspector.get_columns(table)]
+
+                        # Only use columns that exist in both databases
+                        common_columns = [col for col in sqlite_columns if col in postgres_columns]
+
+                        if not common_columns:
+                            logger.warning("no_common_columns", table=table, sqlite_cols=sqlite_columns, postgres_cols=postgres_columns)
+                            migrated_rows[table] = 0
+                            continue
+
+                        # Log skipped columns if any
+                        skipped_columns = [col for col in sqlite_columns if col not in postgres_columns]
+                        if skipped_columns:
+                            logger.info("skipping_columns", table=table, columns=skipped_columns)
+
+                        # Build insert statement with only common columns
+                        placeholders = ", ".join([f":{col}" for col in common_columns])
+                        insert_sql = f"INSERT INTO {table} ({', '.join(common_columns)}) VALUES ({placeholders})"
 
                         # Insert data into PostgreSQL
                         row_count = 0
                         for row in rows:
-                            row_dict = dict(zip(columns, row))
+                            # Only include common columns in the row dict
+                            full_row_dict = dict(zip(sqlite_columns, row))
+                            row_dict = {col: full_row_dict[col] for col in common_columns}
                             postgres_conn.execute(text(insert_sql), row_dict)
                             row_count += 1
 
