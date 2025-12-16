@@ -1245,18 +1245,6 @@
   color: #cccccc;
 }
 
-[data-theme="dark"] .empty-state h3 {
-  color: #ffffff;
-}
-
-[data-theme="dark"] .empty-state-icon {
-  color: #667eea;
-}
-
-[data-theme="dark"] .tutorial-hint {
-  color: #999;
-}
-
 [data-theme="dark"] .expense-card {
   background: #1a1a1a;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
