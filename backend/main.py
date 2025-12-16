@@ -1079,6 +1079,8 @@ async def merge_tags(
         expense_tags = expense_tags_result.scalars().all()
 
         merged_count = 0
+        deleted_count = 0
+
         for expense_tag in expense_tags:
             # Check if expense already has target tag
             existing = await db.execute(
@@ -1088,12 +1090,16 @@ async def merge_tags(
                 )
             )
             if not existing.scalar_one_or_none():
-                # Update to target tag
+                # Expense doesn't have target tag, update to target
                 expense_tag.user_tag_id = target_user_tag.id
                 merged_count += 1
             else:
-                # Expense already has target tag, just delete the source tag relationship
+                # Expense already has target tag, delete the duplicate source relationship
                 await db.delete(expense_tag)
+                deleted_count += 1
+
+        # Flush to process updates/deletes before deleting the source tag
+        await db.flush()
 
         # Delete source tag
         await db.delete(source_user_tag)
@@ -1104,12 +1110,14 @@ async def merge_tags(
             user_id=current_user.id,
             source_tag=source_tag,
             target_tag=target_tag,
-            expenses_updated=merged_count
+            expenses_updated=merged_count,
+            duplicates_removed=deleted_count
         )
 
         return {
             "message": f"Merged '{source_tag}' into '{target_tag}'",
             "expenses_updated": merged_count,
+            "duplicates_removed": deleted_count,
             "source_tag": source_tag,
             "target_tag": target_tag
         }
