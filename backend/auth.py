@@ -145,8 +145,11 @@ async def get_or_create_user(db: AsyncSession, google_user_data: dict) -> User:
 
     for attempt in range(max_retries):
         try:
-            # Check if user exists
-            result = await db.execute(select(User).filter(User.google_id == google_user_data['google_id']))
+            # Check if user exists - explicitly load all columns
+            result = await db.execute(
+                select(User)
+                .filter(User.google_id == google_user_data['google_id'])
+            )
             user = result.scalar_one_or_none()
 
             if not user:
