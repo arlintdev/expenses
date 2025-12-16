@@ -24,9 +24,28 @@ function AppContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [totalExpenses, setTotalExpenses] = useState(null);
 
   // Derive active tab from current route
   const activeTab = location.pathname.split('/')[1] || 'dashboard';
+
+  useEffect(() => {
+    // Fetch total expense count to show first expense prompt
+    const fetchTotalCount = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/expenses?skip=0&limit=1`, {
+          headers: getAuthHeader(),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setTotalExpenses(data.length);
+        }
+      } catch (err) {
+        console.error('Error fetching expense count:', err);
+      }
+    };
+    fetchTotalCount();
+  }, [refreshTrigger, getAuthHeader]);
 
   const handleExpenseAdded = (newExpense) => {
     setIsModalOpen(false);
