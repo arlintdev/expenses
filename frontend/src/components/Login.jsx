@@ -37,6 +37,43 @@ const Login = () => {
             scan receipts, and get instant insights into your spending.
           </p>
 
+          <div className="upload-methods">
+            <div className="method-item">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+              </svg>
+              <span>Voice</span>
+            </div>
+            <div className="method-item">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+              </svg>
+              <span>Photo</span>
+            </div>
+            <div className="method-item">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              <span>Screenshot</span>
+            </div>
+            <div className="method-item">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+              <span>CSV</span>
+            </div>
+            <div className="method-item">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L21 7"/>
+              </svg>
+              <span>Manual</span>
+            </div>
+          </div>
+
           <div className="hero-cta">
             {errorMessage && (
               <div className="login-error">

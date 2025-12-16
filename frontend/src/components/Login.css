@@ -50,6 +50,38 @@
   max-width: 540px;
 }
 
+/* Upload Methods */
+.upload-methods {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+
+.method-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border-radius: 24px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.method-item:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.method-item svg {
+  width: 18px;
+  height: 18px;
+}
+
 .hero-cta {
   display: flex;
   flex-direction: column;
@@ -277,6 +309,21 @@
 
   .hero-cta {
     align-items: center;
+  }
+
+  .upload-methods {
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .method-item {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  .method-item svg {
+    width: 16px;
+    height: 16px;
   }
 
   .google-login-wrapper {
