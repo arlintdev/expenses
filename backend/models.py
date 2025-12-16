@@ -129,8 +129,13 @@ class Expense(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="expenses")
-    tags = relationship("Tag", back_populates="expense", cascade="all, delete-orphan")  # Old relationship
-    expense_tags = relationship("ExpenseTag", back_populates="expense", cascade="all, delete-orphan")  # New relationship
+    expense_tags = relationship("ExpenseTag", back_populates="expense", cascade="all, delete-orphan")
+
+    # Helper property to get tag names for backward compatibility
+    @property
+    def tags(self):
+        """Return list of tag names from expense_tags."""
+        return [et.user_tag.name for et in self.expense_tags if et.user_tag]
 
 def run_migrations():
     """
