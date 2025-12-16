@@ -43,5 +43,6 @@ EXPOSE 8000
 ENV PYTHONUNBUFFERED=1
 ENV DATABASE_URL=sqlite:///./data/expenses.db
 
-# Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application with multiple workers for better concurrency
+# Workers = (2 x CPU cores) + 1, capped at 4 for typical setups
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
