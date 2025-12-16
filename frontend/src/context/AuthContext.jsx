@@ -80,7 +80,7 @@ export const AuthProvider = ({ children }) => {
           },
           body: JSON.stringify({ token: googleToken }),
         },
-        15000 // 15 second timeout for login
+        45000 // 45 second timeout for login (allow time for database locks to resolve)
       );
 
       console.log('Login response status:', response.status);

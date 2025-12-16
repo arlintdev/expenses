@@ -126,6 +126,18 @@ async def log_requests(request: Request, call_next):
 async def startup_event():
     await init_db()
 
+    # Verify WAL mode is enabled for SQLite
+    try:
+        from models import AsyncSessionLocal
+        async with AsyncSessionLocal() as session:
+            result = await session.execute("PRAGMA journal_mode")
+            journal_mode = result.scalar()
+            logger.info("database_initialized", journal_mode=journal_mode)
+            if journal_mode != "wal":
+                logger.warning("wal_mode_not_enabled", current_mode=journal_mode)
+    except Exception as e:
+        logger.error("database_check_failed", error=str(e))
+
 # Initialize Claude service
 claude_service = ClaudeService()
 

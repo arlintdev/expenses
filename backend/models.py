@@ -29,6 +29,8 @@ engine = create_async_engine(
     },
     pool_pre_ping=True,  # Verify connections before using them
     pool_recycle=3600,  # Recycle connections after 1 hour
+    pool_size=10,  # Maximum number of connections in the pool
+    max_overflow=20,  # Allow up to 20 additional connections when pool is exhausted
 )
 
 # Enable WAL mode for SQLite to allow concurrent reads during writes
@@ -42,7 +44,10 @@ def set_sqlite_pragma(dbapi_conn, connection_record):
     cursor.execute("PRAGMA cache_size=-10000")
     # Set busy timeout to 30 seconds
     cursor.execute("PRAGMA busy_timeout=30000")
+    # Use normal synchronous mode for better performance (still safe with WAL)
+    cursor.execute("PRAGMA synchronous=NORMAL")
     cursor.close()
+    print(f"✅ SQLite connection initialized with WAL mode")
 
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

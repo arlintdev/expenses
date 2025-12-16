@@ -162,11 +162,20 @@ async def get_or_create_user(db: AsyncSession, google_user_data: dict) -> User:
                 await db.refresh(user)
                 logger.info("user_created", user_id=user.id)
             else:
-                # Update user info if changed
-                user.name = google_user_data.get('name')
-                user.picture = google_user_data.get('picture')
-                await db.commit()
-                logger.debug("user_updated", user_id=user.id)
+                # Update user info only if actually changed (avoid unnecessary writes)
+                needs_update = False
+                if user.name != google_user_data.get('name'):
+                    user.name = google_user_data.get('name')
+                    needs_update = True
+                if user.picture != google_user_data.get('picture'):
+                    user.picture = google_user_data.get('picture')
+                    needs_update = True
+
+                if needs_update:
+                    await db.commit()
+                    logger.debug("user_updated", user_id=user.id)
+                else:
+                    logger.debug("user_unchanged", user_id=user.id)
 
             return user
 
