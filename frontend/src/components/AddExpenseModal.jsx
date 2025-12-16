@@ -811,6 +811,14 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
               <span>CSV Upload</span>
               <p className="mode-description">Bulk from spreadsheet</p>
             </button>
+
+            <button onClick={() => setMode('manual')} className="mode-button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L21 7"></path>
+              </svg>
+              <span>Manual Entry</span>
+              <p className="mode-description">Type details</p>
+            </button>
           </div>
 
           <div className="quick-actions-hint">
@@ -1322,6 +1330,128 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
 
           <div className="modal-hint">
             Select multiple images to process them all at once
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== MANUAL MODE ====================
+
+  if (mode === 'manual') {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-content confirmation-modal" onClick={(e) => e.stopPropagation()}>
+          <button className="modal-close" onClick={onClose}>&times;</button>
+          <button className="modal-back" onClick={handleBack}>← Back</button>
+
+          <h2>Add Expense Manually</h2>
+          <p className="modal-subtitle">Enter the expense details</p>
+
+          <div className="confirmation-fields">
+            <div className="confirmation-field">
+              <label>Date</label>
+              <input
+                type="date"
+                value={confirmationData?.date ? new Date(confirmationData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
+                onChange={(e) => setConfirmationData({...confirmationData || {}, date: e.target.value})}
+                className="confirmation-input"
+              />
+            </div>
+
+            <div className="confirmation-field">
+              <label>Description *</label>
+              <input
+                type="text"
+                placeholder="What was the expense for?"
+                value={confirmationData?.description || ''}
+                onChange={(e) => setConfirmationData({...confirmationData || {}, description: e.target.value})}
+                className="confirmation-input"
+              />
+            </div>
+
+            <div className="confirmation-field">
+              <label>Amount *</label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={confirmationData?.amount || ''}
+                onChange={(e) => setConfirmationData({...confirmationData || {}, amount: e.target.value ? parseFloat(e.target.value) : ''})}
+                className="confirmation-input"
+              />
+            </div>
+
+            <div className="confirmation-field">
+              <label>Recipient</label>
+              <input
+                type="text"
+                placeholder="Who did you pay?"
+                value={confirmationData?.recipient || ''}
+                onChange={(e) => setConfirmationData({...confirmationData || {}, recipient: e.target.value})}
+                className="confirmation-input"
+              />
+            </div>
+
+            <div className="confirmation-field">
+              <label>Materials (Optional)</label>
+              <input
+                type="text"
+                placeholder="What materials or items..."
+                value={confirmationData?.materials || ''}
+                onChange={(e) => setConfirmationData({...confirmationData || {}, materials: e.target.value})}
+                className="confirmation-input"
+              />
+            </div>
+
+            <div className="confirmation-field">
+              <label>Hours (Optional)</label>
+              <input
+                type="number"
+                step="0.25"
+                placeholder="0.00"
+                value={confirmationData?.hours || ''}
+                onChange={(e) => setConfirmationData({...confirmationData || {}, hours: e.target.value ? parseFloat(e.target.value) : ''})}
+                className="confirmation-input"
+              />
+            </div>
+
+            <div className="confirmation-field">
+              <label>Tags</label>
+              <TagInput
+                tags={Array.isArray(confirmationData?.tags) ? confirmationData.tags : []}
+                onChange={(tags) => setConfirmationData({...confirmationData || {}, tags})}
+                availableTags={availableTags}
+                placeholder="Add tags..."
+              />
+            </div>
+          </div>
+
+          {error && (
+            <div className="modal-error">{error}</div>
+          )}
+
+          <div className="confirmation-actions">
+            <button onClick={() => {
+              setConfirmationData(null);
+              setMode(null);
+              onClose();
+            }} className="cancel-button">
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                if (!confirmationData?.description || !confirmationData?.amount) {
+                  setError('Description and Amount are required');
+                  return;
+                }
+                await submitExpense(confirmationData);
+              }}
+              className="confirm-button"
+              disabled={isProcessing}
+            >
+              {isProcessing ? 'Creating...' : 'Create Expense'}
+            </button>
           </div>
         </div>
       </div>

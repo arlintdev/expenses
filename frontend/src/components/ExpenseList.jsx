@@ -148,6 +148,31 @@ function ExpenseList({
     }
   };
 
+  const handleDuplicate = async (expense) => {
+    try {
+      setOpenMenuId(null);
+      const { id, date, ...expenseData } = expense;
+
+      const response = await fetch(`${apiUrl}/api/expenses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify(expenseData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to duplicate expense');
+      }
+
+      const newExpense = await response.json();
+      setExpenses([newExpense, ...expenses]);
+    } catch (error) {
+      console.error('Error duplicating expense:', error);
+    }
+  };
+
   // Sync filters with URL params
   useEffect(() => {
     const params = {};
@@ -693,6 +718,12 @@ function ExpenseList({
                                 Edit
                               </button>
                               <button
+                                onClick={() => handleDuplicate(expense)}
+                                className="duplicate-button"
+                              >
+                                Duplicate
+                              </button>
+                              <button
                                 className="delete-button"
                                 onClick={() => setDeleteConfirmation({
                                   id: expense.id,
@@ -744,6 +775,12 @@ function ExpenseList({
                           className="menu-item"
                         >
                           Edit
+                        </button>
+                        <button
+                          onClick={() => handleDuplicate(expense)}
+                          className="menu-item"
+                        >
+                          Duplicate
                         </button>
                         <button
                           onClick={() => {

@@ -491,6 +491,15 @@
   opacity: 0.9;
 }
 
+.duplicate-button {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  color: white;
+}
+
+.duplicate-button:hover {
+  opacity: 0.9;
+}
+
 .save-button {
   background: #4caf50;
   color: white;
