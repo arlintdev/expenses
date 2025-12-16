@@ -208,10 +208,152 @@
 .empty-state {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 2rem;
   color: #666;
+  text-align: center;
+  gap: 1.5rem;
+}
+
+.empty-state-icon {
+  width: 80px;
+  height: 80px;
+  color: #667eea;
+  animation: float 3s ease-in-out infinite;
+}
+
+.empty-state-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.empty-state h3 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.empty-state-message {
+  font-size: 1.1rem;
+  color: #666;
+  max-width: 500px;
+  margin: 0;
+}
+
+.tutorial-arrow-container {
+  position: fixed;
+  bottom: 100px;
+  right: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  pointer-events: none;
+  z-index: 999;
+}
+
+.tutorial-arrow {
+  width: 60px;
+  height: 60px;
+  position: relative;
+  animation: bounce 2s ease-in-out infinite;
+}
+
+.tutorial-arrow::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 20px solid transparent;
+  border-right: 20px solid transparent;
+  border-top: 30px solid #667eea;
+}
+
+.tutorial-arrow::after {
+  content: '';
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8px;
+  height: 40px;
+  background: #667eea;
+  border-radius: 4px;
+}
+
+.tutorial-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.tutorial-badge {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 24px;
+  font-weight: 600;
+  font-size: 1rem;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.tutorial-hint {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0;
+  max-width: 280px;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-15px);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@media (max-width: 768px) {
+  .tutorial-arrow-container {
+    bottom: 80px;
+    right: 20px;
+  }
+
+  .tutorial-badge {
+    font-size: 0.9rem;
+    padding: 0.6rem 1.2rem;
+  }
+
+  .tutorial-hint {
+    font-size: 0.85rem;
+    max-width: 220px;
+  }
 }
 
 .expenses-scroll-wrapper {
@@ -1101,6 +1243,18 @@
 
 [data-theme="dark"] .empty-state {
   color: #cccccc;
+}
+
+[data-theme="dark"] .empty-state h3 {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .empty-state-icon {
+  color: #667eea;
+}
+
+[data-theme="dark"] .tutorial-hint {
+  color: #999;
 }
 
 [data-theme="dark"] .expense-card {

@@ -554,7 +554,27 @@ function ExpenseList({
 
       {filteredExpenses.length === 0 && !loading ? (
         <div className="empty-state">
-          <p>No expenses found{hasActiveFilters ? ' matching your filters' : ''}.</p>
+          {!hasActiveFilters && expenses.length === 0 ? (
+            <>
+              <div className="empty-state-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+                  <path d="M12.5 7H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                </svg>
+              </div>
+              <h3>Welcome to ExpenseTracker!</h3>
+              <p className="empty-state-message">You haven't added any expenses yet. Get started by clicking the purple button in the bottom right corner.</p>
+              <div className="tutorial-arrow-container">
+                <div className="tutorial-arrow"></div>
+                <div className="tutorial-text">
+                  <div className="tutorial-badge">👇 Click here to add your first expense</div>
+                  <p className="tutorial-hint">You can add expenses using voice, photos, screenshots, CSV, or manually!</p>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p>No expenses found{hasActiveFilters ? ' matching your filters' : ''}.</p>
+          )}
         </div>
       ) : (
         <div className="expenses-scroll-wrapper">
