@@ -162,12 +162,35 @@ def get_config():
 async def google_auth(auth_request: GoogleAuthRequest, db: AsyncSession = Depends(get_db)):
     """
     Authenticate user with Google OAuth token and return JWT access token.
+
+    This endpoint:
+    1. Verifies the Google ID token with timeout protection
+    2. Creates or updates user record in database
+    3. Issues a JWT access token for subsequent API calls
     """
+    # Log authentication attempt (no sensitive data)
+    logger.info(
+        "auth_attempt_started",
+        token_length=len(auth_request.token),
+        has_google_client_id=bool(os.getenv("GOOGLE_CLIENT_ID"))
+    )
+
     try:
+        # Verify Google token (includes timeout protection)
         user_info = await verify_google_token(auth_request.token)
+
+        # Get or create user in database
         user = await get_or_create_user(db, user_info)
 
+        # Generate JWT token
         access_token = create_access_token(data={"user_id": user.id})
+
+        logger.info(
+            "auth_success",
+            user_id=user.id,
+            email_domain=user.email.split('@')[1] if '@' in user.email else "unknown",
+            is_new_user=user.created_at > (datetime.utcnow() - timedelta(seconds=5))
+        )
 
         return AuthResponse(
             access_token=access_token,
@@ -180,8 +203,20 @@ async def google_auth(auth_request: GoogleAuthRequest, db: AsyncSession = Depend
                 created_at=user.created_at
             )
         )
+
+    except HTTPException:
+        # Re-raise HTTPExceptions from verify_google_token (already logged)
+        raise
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
+        logger.error(
+            "auth_failed",
+            error=str(e),
+            error_type=type(e).__name__
+        )
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication failed. Please try again."
+        )
 
 @app.get("/api/auth/me", response_model=UserResponse)
 async def get_current_user_info(current_user: User = Depends(get_current_user)):

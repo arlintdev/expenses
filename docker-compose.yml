@@ -11,11 +11,18 @@ services:
       - .env  # Load environment variables from .env file
     environment:
       - DATABASE_URL=sqlite:///./data/expenses.db
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://192.168.68.63:3000,http://localhost:3000}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://expenses.arlint.dev,http://192.168.68.63:3000,http://localhost:3000}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
     volumes:
       - ./data:/app/data  # Persist database outside container
     networks:
       - expense-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 networks:
   expense-network:

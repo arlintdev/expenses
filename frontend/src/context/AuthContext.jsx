@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { fetchWithTimeout, FetchTimeoutError } from '../utils/fetchWithTimeout';
 
 const AuthContext = createContext(null);
 
@@ -32,11 +33,15 @@ export const AuthProvider = ({ children }) => {
       console.log('Fetching user info with token:', token ? 'Token exists' : 'No token');
       console.log('API URL:', API_URL);
 
-      const response = await fetch(`${API_URL}/api/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithTimeout(
+        `${API_URL}/api/auth/me`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+        10000 // 10 second timeout for auth check
+      );
 
       console.log('Auth check response status:', response.status);
 
@@ -53,6 +58,9 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Failed to fetch user info:', error);
       console.error('Error details:', error.message);
+      if (error instanceof FetchTimeoutError) {
+        console.error('Auth check timed out after', error.timeout, 'ms');
+      }
       logout();
     } finally {
       setLoading(false);
@@ -63,20 +71,29 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('Attempting Google login, API URL:', API_URL);
 
-      const response = await fetch(`${API_URL}/api/auth/google`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await fetchWithTimeout(
+        `${API_URL}/api/auth/google`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ token: googleToken }),
         },
-        body: JSON.stringify({ token: googleToken }),
-      });
+        15000 // 15 second timeout for login
+      );
 
       console.log('Login response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Login failed:', errorText);
-        throw new Error('Authentication failed');
+
+        // Provide specific error message based on status code
+        if (response.status === 504) {
+          throw new Error('Google authentication service is not responding. Please try again.');
+        }
+        throw new Error('Authentication failed. Please try again.');
       }
 
       const data = await response.json();
@@ -89,6 +106,11 @@ export const AuthProvider = ({ children }) => {
       return data;
     } catch (error) {
       console.error('Login failed:', error);
+
+      if (error instanceof FetchTimeoutError) {
+        throw new Error('Login is taking longer than expected. Please check your connection and try again.');
+      }
+
       throw error;
     }
   };
