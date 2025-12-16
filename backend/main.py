@@ -712,14 +712,14 @@ async def get_expenses(
             end_date = datetime(year + 1, 1, 1)
             query = query.filter(Expense.date >= start_date, Expense.date < end_date)
 
-        # Tag filtering - use exists to avoid orphaned tag issues
+        # Tag filtering - using new UserTag + ExpenseTag system
         if tags:
             tag_list = [t.strip() for t in tags.split(',') if t.strip()]
             if tag_list:
-                # Use EXISTS subquery to avoid issues with orphaned tags
-                tag_exists = select(Tag.expense_id).filter(
-                    Tag.expense_id == Expense.id,
-                    Tag.name.in_(tag_list)
+                # Filter for expenses that have at least one of the specified tags
+                tag_exists = select(ExpenseTag.expense_id).join(UserTag).filter(
+                    ExpenseTag.expense_id == Expense.id,
+                    UserTag.name.in_(tag_list)
                 ).exists()
                 query = query.filter(tag_exists)
 
@@ -727,17 +727,7 @@ async def get_expenses(
         result = await db.execute(query)
         expenses = result.unique().scalars().all()  # unique() prevents duplicates from joins
 
-        # Filter out any expenses with invalid tag relationships
-        valid_expenses = []
-        for expense in expenses:
-            try:
-                # Try to access the tags to ensure they're valid
-                _ = [tag.name for tag in expense.tags]
-                valid_expenses.append(expense)
-            except Exception as e:
-                continue
-
-        return valid_expenses
+        return expenses
     except Exception as e:
         import traceback
         traceback.print_exc()
