@@ -4,7 +4,7 @@ from typing import Optional, List
 
 # User schemas
 class UserResponse(BaseModel):
-    id: int
+    id: str  # UUIDv6 string
     email: str
     name: Optional[str]
     picture: Optional[str]
