@@ -491,14 +491,17 @@ async def get_spending_by_tag(
         total_result = await db.execute(total_query)
         total_amount = float(total_result.scalar() or 0.0)
 
-        # Query spending by tag
+        # Query spending by tag (using new UserTag + ExpenseTag system)
         query = select(
-            Tag.name,
+            UserTag.name,
             func.sum(Expense.amount).label('total_amount'),
             func.count(Expense.id).label('expense_count')
-        ).join(Expense).filter(
-            Expense.user_id == current_user.id
-        ).group_by(Tag.name).order_by(func.sum(Expense.amount).desc())
+        ).join(ExpenseTag, UserTag.id == ExpenseTag.user_tag_id
+        ).join(Expense, ExpenseTag.expense_id == Expense.id
+        ).filter(
+            Expense.user_id == current_user.id,
+            UserTag.user_id == current_user.id
+        ).group_by(UserTag.name).order_by(func.sum(Expense.amount).desc())
 
         if date_from:
             parsed_date_from = datetime.fromisoformat(date_from)
