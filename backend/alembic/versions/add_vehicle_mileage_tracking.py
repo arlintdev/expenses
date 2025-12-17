@@ -91,17 +91,25 @@ def upgrade() -> None:
     op.create_index(op.f('ix_irs_mileage_rates_year'), 'irs_mileage_rates', ['year'], unique=True)
 
     # Seed IRS mileage rates for 2024-2025
-    # Check if database is SQLite or PostgreSQL to use appropriate UUID generation
     import uuid6
+    from alembic import context
+
     rate_2024_id = str(uuid6.uuid6())
     rate_2025_id = str(uuid6.uuid6())
+
+    # Detect database type for appropriate datetime function
+    bind = op.get_bind()
+    if bind.dialect.name == 'postgresql':
+        datetime_func = 'NOW()'
+    else:
+        datetime_func = "datetime('now')"
 
     op.execute(
         f"""
         INSERT INTO irs_mileage_rates (id, year, rate, effective_date, created_at, updated_at)
         VALUES
-            ('{rate_2024_id}', 2024, 0.67, '2024-01-01', datetime('now'), datetime('now')),
-            ('{rate_2025_id}', 2025, 0.67, '2025-01-01', datetime('now'), datetime('now'))
+            ('{rate_2024_id}', 2024, 0.67, '2024-01-01', {datetime_func}, {datetime_func}),
+            ('{rate_2025_id}', 2025, 0.67, '2025-01-01', {datetime_func}, {datetime_func})
         """
     )
 
