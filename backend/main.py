@@ -32,6 +32,7 @@ from schemas import (
 )
 from claude_service import ClaudeService
 from auth import verify_google_token, create_access_token, get_current_user, get_or_create_user, get_admin_user
+from mcp_integration import MCPIntegration
 import time
 
 # Load .env from the backend directory
@@ -123,6 +124,8 @@ def expand_recurring_expenses(recurring_expenses: List[RecurringExpense], user_i
     return expanded
 
 app = FastAPI(title="Expense Tracker API", version="1.0.0")
+
+mcp_integration = MCPIntegration(app)
 
 # CORS configuration
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
