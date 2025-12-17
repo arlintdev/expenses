@@ -14,14 +14,9 @@ COPY frontend/ ./
 RUN npm run build
 
 # Backend stage
-FROM python:3.10-slim
+FROM tiangolo/uvicorn-gunicorn:python3.10-slim
 
 WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
 
 # Copy backend requirements
 COPY backend/requirements.txt ./
@@ -36,13 +31,10 @@ COPY --from=frontend-builder /app/frontend/dist ./static
 # Create data directory for SQLite
 RUN mkdir -p /app/data
 
-# Expose port
-EXPOSE 8000
-
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV DATABASE_URL=sqlite:///./data/expenses.db
+ENV APP_MODULE=main:app
+ENV MAX_WORKERS=4
 
-# Run the application with multiple workers for better concurrency
-# Workers = (2 x CPU cores) + 1, capped at 4 for typical setups
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+# The base image will handle starting uvicorn with gunicorn
