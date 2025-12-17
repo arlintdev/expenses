@@ -180,10 +180,16 @@
 }
 
 .vehicle-details,
-.vehicle-license {
+.vehicle-license,
+.vehicle-odometer {
   margin: 4px 0;
   font-size: 14px;
   color: #666;
+}
+
+.vehicle-odometer {
+  font-weight: 500;
+  color: #667eea;
 }
 
 .archived-badge {

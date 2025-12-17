@@ -11,8 +11,10 @@ import SettingsRoute from './routes/SettingsRoute';
 import AdminRoute from './routes/AdminRoute';
 import BottomNav from './components/BottomNav';
 import AddExpenseModal from './components/AddExpenseModal';
+import AddMileageModal from './components/mileage/AddMileageModal';
 import Login from './components/Login';
 import { useAuth } from './context/AuthContext';
+import { MdAttachMoney, MdDirectionsCar } from 'react-icons/md';
 
 // Use relative URL when in production (served from same origin)
 // Use VITE_API_URL for development
@@ -24,6 +26,7 @@ function AppContent() {
   const navigate = useNavigate();
   const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMileageModalOpen, setIsMileageModalOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [totalExpenses, setTotalExpenses] = useState(null);
@@ -55,6 +58,15 @@ function AppContent() {
     // Navigate to expenses if not already there
     if (!location.pathname.startsWith('/expenses')) {
       navigate('/expenses');
+    }
+  };
+
+  const handleMileageAdded = (newLog) => {
+    setIsMileageModalOpen(false);
+    setRefreshTrigger(prev => prev + 1);
+    // Navigate to mileage if not already there
+    if (!location.pathname.startsWith('/mileage') && !location.pathname.startsWith('/vehicles')) {
+      navigate('/mileage');
     }
   };
 
@@ -274,7 +286,8 @@ function AppContent() {
 
       <BottomNav
         activeTab={activeTab}
-        onMicClick={() => setIsModalOpen(true)}
+        onExpenseClick={() => setIsModalOpen(true)}
+        onMileageClick={() => setIsMileageModalOpen(true)}
       />
 
       <AddExpenseModal
@@ -284,20 +297,37 @@ function AppContent() {
         apiUrl={API_URL}
       />
 
+      <AddMileageModal
+        isOpen={isMileageModalOpen}
+        onClose={() => setIsMileageModalOpen(false)}
+        onMileageAdded={handleMileageAdded}
+        apiUrl={API_URL}
+      />
+
       {totalExpenses === 0 && (
         <div className="first-expense-prompt">
           Add your first expense here
         </div>
       )}
-      <button
-        className={`floating-add-button ${totalExpenses === 0 ? 'pulse-animation' : ''}`}
-        onClick={() => setIsModalOpen(true)}
-        aria-label="Add expense"
-      >
-        <svg viewBox="0 0 24 24" fill="currentColor" strokeWidth="2">
-          <path d="M7 14l5-5 5 5z"/>
-        </svg>
-      </button>
+
+      <div className="floating-buttons-desktop">
+        <button
+          className="floating-action-button mileage-button"
+          onClick={() => setIsMileageModalOpen(true)}
+          aria-label="Add mileage"
+          title="Add Mileage"
+        >
+          <MdDirectionsCar size={24} />
+        </button>
+        <button
+          className={`floating-action-button expense-button ${totalExpenses === 0 ? 'pulse-animation' : ''}`}
+          onClick={() => setIsModalOpen(true)}
+          aria-label="Add expense"
+          title="Add Expense"
+        >
+          <MdAttachMoney size={24} />
+        </button>
+      </div>
     </div>
   );
 }

@@ -190,6 +190,7 @@ class VehicleUpdate(BaseModel):
 class VehicleResponse(VehicleBase):
     id: str
     user_id: str
+    last_odometer_reading: Optional[int] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

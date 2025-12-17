@@ -99,11 +99,25 @@ function AddMileageModal({ isOpen, onClose, onMileageAdded, apiUrl }) {
         const data = await response.json();
         setVehicles(data);
         if (data.length > 0 && !formData.vehicle_id) {
-          setFormData(prev => ({ ...prev, vehicle_id: data[0].id }));
+          const firstVehicle = data[0];
+          setFormData(prev => ({
+            ...prev,
+            vehicle_id: firstVehicle.id,
+            odometer_start: firstVehicle.last_odometer_reading || ''
+          }));
         }
       }
     } catch (err) {
       console.error('Error fetching vehicles:', err);
+    }
+  };
+
+  // Auto-populate odometer_start when vehicle changes
+  const handleVehicleChange = (vehicleId) => {
+    const selectedVehicle = vehicles.find(v => v.id === vehicleId);
+    handleFormChange('vehicle_id', vehicleId);
+    if (selectedVehicle && selectedVehicle.last_odometer_reading) {
+      handleFormChange('odometer_start', selectedVehicle.last_odometer_reading.toString());
     }
   };
 
@@ -474,13 +488,14 @@ function AddMileageModal({ isOpen, onClose, onMileageAdded, apiUrl }) {
               <label>Vehicle *</label>
               <select
                 value={currentData.vehicle_id}
-                onChange={(e) => handleFormChange('vehicle_id', e.target.value)}
+                onChange={(e) => handleVehicleChange(e.target.value)}
                 required
               >
                 <option value="">Select a vehicle</option>
                 {vehicles.map(vehicle => (
                   <option key={vehicle.id} value={vehicle.id}>
                     {vehicle.name}
+                    {vehicle.last_odometer_reading ? ` (Last: ${vehicle.last_odometer_reading.toLocaleString()} mi)` : ''}
                   </option>
                 ))}
               </select>

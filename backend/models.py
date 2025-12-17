@@ -193,6 +193,7 @@ class Vehicle(Base):
     model = Column(String, nullable=True)
     year = Column(Integer, nullable=True)
     license_plate = Column(String, nullable=True)
+    last_odometer_reading = Column(Integer, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

@@ -271,6 +271,11 @@ function VehicleManager({ apiUrl }) {
                     {vehicle.license_plate && (
                       <p className="vehicle-license">{vehicle.license_plate}</p>
                     )}
+                    {vehicle.last_odometer_reading && (
+                      <p className="vehicle-odometer">
+                        Last odometer: {vehicle.last_odometer_reading.toLocaleString()} mi
+                      </p>
+                    )}
                     {!vehicle.is_active && (
                       <span className="archived-badge">Archived</span>
                     )}

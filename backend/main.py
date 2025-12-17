@@ -2264,6 +2264,9 @@ async def create_mileage_log(
     linked_expense = await create_linked_expense_from_mileage(db_mileage_log, db)
     db_mileage_log.linked_expense_id = linked_expense.id
 
+    # Update vehicle's last odometer reading
+    vehicle.last_odometer_reading = mileage_log.odometer_end
+
     await db.commit()
 
     # Reload with relationships
