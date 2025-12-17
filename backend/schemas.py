@@ -69,6 +69,42 @@ class VoiceTranscriptionResponse(BaseModel):
     parsed_expense: Optional[ExpenseCreate] = None
     warning: Optional[str] = None
 
+class RecurringExpenseBase(BaseModel):
+    description: str = Field(..., min_length=1, description="What the expense is for")
+    recipient: str = Field(..., min_length=1, description="Who the expense is for")
+    materials: Optional[str] = Field(None, description="Materials used (optional)")
+    hours: Optional[float] = Field(None, ge=0, description="Hours worked (optional)")
+    tags: Optional[List[str]] = Field(default_factory=list, description="Expense tags (optional)")
+    amount: float = Field(..., gt=0, description="Amount of the expense")
+    start_month: int = Field(..., ge=1, le=12, description="Start month (1-12)")
+    start_year: int = Field(..., ge=2000, description="Start year")
+    end_month: int = Field(..., ge=1, le=12, description="End month (1-12)")
+    end_year: int = Field(..., ge=2000, description="End year")
+    day_of_month: int = Field(default=1, ge=1, le=31, description="Day of month to create expense")
+
+class RecurringExpenseCreate(RecurringExpenseBase):
+    pass
+
+class RecurringExpenseResponse(RecurringExpenseBase):
+    id: str
+    user_id: str
+    tags: List[str] = []
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+    @field_validator('tags', mode='before')
+    @classmethod
+    def extract_tag_names(cls, v):
+        """Convert RecurringExpenseTag objects to list of tag names."""
+        if isinstance(v, list) and len(v) > 0:
+            if hasattr(v[0], 'user_tag'):
+                return [ret.user_tag.name for ret in v if ret.user_tag]
+            if isinstance(v[0], str):
+                return v
+        return v if v else []
+
 # Analytics schemas
 class SummaryStats(BaseModel):
     total_amount: float = Field(..., description="Total amount spent")

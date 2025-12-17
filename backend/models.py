@@ -87,6 +87,7 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     expenses = relationship("Expense", back_populates="user", cascade="all, delete-orphan")
+    recurring_expenses = relationship("RecurringExpense", back_populates="user", cascade="all, delete-orphan")
     user_tags = relationship("UserTag", back_populates="user", cascade="all, delete-orphan")
 
 class UserTag(Base):
@@ -136,6 +137,45 @@ class Expense(Base):
     def tags(self):
         """Return list of tag names from expense_tags."""
         return [et.user_tag.name for et in self.expense_tags if et.user_tag]
+
+class RecurringExpense(Base):
+    __tablename__ = "recurring_expenses"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid6.uuid6()), index=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    description = Column(String, nullable=False)
+    recipient = Column(String, nullable=False)
+    materials = Column(String, nullable=True)
+    hours = Column(Float, nullable=True)
+    amount = Column(Float, nullable=False)
+    start_month = Column(Integer, nullable=False)
+    start_year = Column(Integer, nullable=False)
+    end_month = Column(Integer, nullable=False)
+    end_year = Column(Integer, nullable=False)
+    day_of_month = Column(Integer, default=1, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="recurring_expenses")
+    recurring_expense_tags = relationship("RecurringExpenseTag", back_populates="recurring_expense", cascade="all, delete-orphan")
+
+    @property
+    def tags(self):
+        """Return list of tag names from recurring_expense_tags."""
+        return [ret.user_tag.name for ret in self.recurring_expense_tags if ret.user_tag]
+
+class RecurringExpenseTag(Base):
+    """Junction table for many-to-many relationship between recurring expenses and user tags."""
+    __tablename__ = "recurring_expense_tags"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid6.uuid6()), index=True)
+    recurring_expense_id = Column(String(36), ForeignKey("recurring_expenses.id", ondelete="CASCADE"), nullable=False)
+    user_tag_id = Column(String(36), ForeignKey("user_tags.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    recurring_expense = relationship("RecurringExpense", back_populates="recurring_expense_tags")
+    user_tag = relationship("UserTag", backref="recurring_expense_tags")
 
 def run_migrations():
     """

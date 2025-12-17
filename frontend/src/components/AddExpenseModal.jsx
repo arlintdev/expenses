@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import TagInput from './TagInput';
+import RecurringExpenseForm from './RecurringExpenseForm';
 import './AddExpenseModal.css';
 
 function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
@@ -819,6 +820,15 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
               <span>Manual Entry</span>
               <p className="mode-description">Type details</p>
             </button>
+
+            <button onClick={() => setMode('recurring')} className="mode-button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              <span>Recurring Expense</span>
+              <p className="mode-description">Repeat monthly</p>
+            </button>
           </div>
 
           <div className="quick-actions-hint">
@@ -1571,6 +1581,58 @@ function AddExpenseModal({ isOpen, onClose, onExpenseAdded, apiUrl }) {
           <div className="modal-hint">
             CSV columns will be interpreted as expense data (description, amount, recipient, date, tags, etc.)
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== RECURRING MODE ====================
+
+  if (mode === 'recurring') {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-content confirmation-modal" onClick={(e) => e.stopPropagation()}>
+          <button className="modal-close" onClick={onClose}>&times;</button>
+          <button className="modal-back" onClick={handleBack}>← Back</button>
+
+          <h2>Create Recurring Expense</h2>
+          <p className="modal-subtitle">Set up recurring monthly payments</p>
+
+          <RecurringExpenseForm
+            onSubmit={async (formData) => {
+              try {
+                setIsProcessing(true);
+                setError(null);
+
+                const response = await fetch(`${apiUrl}/api/recurring-expenses`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    ...getAuthHeader(),
+                  },
+                  body: JSON.stringify(formData),
+                });
+
+                if (!response.ok) {
+                  const errorData = await response.json();
+                  throw new Error(errorData.detail || 'Failed to create recurring expense');
+                }
+
+                setConfirmationData(null);
+                setMode(null);
+                onClose();
+                onExpenseAdded({});
+              } catch (err) {
+                setError(err.message);
+                console.error('Error creating recurring expense:', err);
+              } finally {
+                setIsProcessing(false);
+              }
+            }}
+            availableTags={availableTags}
+            isSubmitting={isProcessing}
+            error={error}
+          />
         </div>
       </div>
     );

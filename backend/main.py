@@ -17,13 +17,14 @@ import structlog
 import csv
 import io
 
-from models import init_db, get_db, Expense, User, UserTag, ExpenseTag, AsyncSessionLocal
+from models import init_db, get_db, Expense, User, UserTag, ExpenseTag, AsyncSessionLocal, RecurringExpense, RecurringExpenseTag
 from schemas import (
     ExpenseCreate, ExpenseResponse, VoiceTranscriptionResponse,
     GoogleAuthRequest, AuthResponse, UserResponse,
     SummaryStats, TagSpending, ByTagResponse, DateSpending, ByDateResponse,
     TagCreate, SubmitCsvResponse, CsvRowResult,
-    AdminUserSummary, AdminUsersResponse
+    AdminUserSummary, AdminUsersResponse,
+    RecurringExpenseCreate, RecurringExpenseResponse
 )
 from claude_service import ClaudeService
 from auth import verify_google_token, create_access_token, get_current_user, get_or_create_user, get_admin_user
@@ -926,6 +927,231 @@ async def bulk_delete_expenses(
 
     await db.commit()
     return {"deleted_count": len(expenses)}
+
+# Recurring expense endpoints
+@app.post("/api/recurring-expenses", status_code=201, response_model=RecurringExpenseResponse)
+async def create_recurring_expense(
+    recurring_expense: RecurringExpenseCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Create a new recurring expense entry with tags for the current user.
+    """
+    try:
+        db_recurring_expense = RecurringExpense(
+            description=recurring_expense.description,
+            recipient=recurring_expense.recipient,
+            materials=recurring_expense.materials,
+            hours=recurring_expense.hours,
+            amount=recurring_expense.amount,
+            start_month=recurring_expense.start_month,
+            start_year=recurring_expense.start_year,
+            end_month=recurring_expense.end_month,
+            end_year=recurring_expense.end_year,
+            day_of_month=recurring_expense.day_of_month,
+            user_id=current_user.id
+        )
+        db.add(db_recurring_expense)
+        await db.flush()
+
+        if recurring_expense.tags:
+            for tag_name in recurring_expense.tags:
+                if tag_name and tag_name.strip():
+                    tag_name = tag_name.strip()
+
+                    user_tag_result = await db.execute(
+                        select(UserTag).filter(
+                            UserTag.user_id == current_user.id,
+                            UserTag.name == tag_name
+                        )
+                    )
+                    user_tag = user_tag_result.scalar_one_or_none()
+
+                    if not user_tag:
+                        user_tag = UserTag(
+                            name=tag_name,
+                            user_id=current_user.id
+                        )
+                        db.add(user_tag)
+                        await db.flush()
+
+                    recurring_expense_tag = RecurringExpenseTag(
+                        recurring_expense_id=db_recurring_expense.id,
+                        user_tag_id=user_tag.id
+                    )
+                    db.add(recurring_expense_tag)
+
+        await db.commit()
+        recurring_expense_id = db_recurring_expense.id
+
+        result = await db.execute(
+            select(RecurringExpense)
+            .options(joinedload(RecurringExpense.recurring_expense_tags))
+            .where(RecurringExpense.id == recurring_expense_id)
+        )
+        created_recurring_expense = result.unique().scalar_one()
+        return created_recurring_expense
+    except Exception as e:
+        await db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to create recurring expense: {str(e)}")
+
+@app.get("/api/recurring-expenses", response_model=List[RecurringExpenseResponse])
+async def get_recurring_expenses(
+    skip: int = 0,
+    limit: int = 20,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all recurring expenses for the current user with pagination.
+    """
+    query = select(RecurringExpense).filter(
+        RecurringExpense.user_id == current_user.id
+    ).order_by(RecurringExpense.created_at.desc()).offset(skip).limit(limit)
+
+    result = await db.execute(query)
+    recurring_expenses = result.unique().scalars().all()
+    return recurring_expenses
+
+@app.get("/api/recurring-expenses/{recurring_expense_id}", response_model=RecurringExpenseResponse)
+async def get_recurring_expense(
+    recurring_expense_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get a specific recurring expense by ID (only if it belongs to current user).
+    """
+    result = await db.execute(
+        select(RecurringExpense)
+        .options(joinedload(RecurringExpense.recurring_expense_tags))
+        .filter(
+            RecurringExpense.id == recurring_expense_id,
+            RecurringExpense.user_id == current_user.id
+        )
+    )
+    recurring_expense = result.unique().scalar_one_or_none()
+
+    if not recurring_expense:
+        raise HTTPException(status_code=404, detail="Recurring expense not found")
+
+    return recurring_expense
+
+@app.put("/api/recurring-expenses/{recurring_expense_id}", response_model=RecurringExpenseResponse)
+async def update_recurring_expense(
+    recurring_expense_id: str,
+    recurring_expense_data: RecurringExpenseCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update a recurring expense (only if it belongs to current user).
+    """
+    try:
+        result = await db.execute(
+            select(RecurringExpense).filter(
+                RecurringExpense.id == recurring_expense_id,
+                RecurringExpense.user_id == current_user.id
+            )
+        )
+        db_recurring_expense = result.scalar_one_or_none()
+
+        if not db_recurring_expense:
+            raise HTTPException(status_code=404, detail="Recurring expense not found")
+
+        db_recurring_expense.description = recurring_expense_data.description
+        db_recurring_expense.recipient = recurring_expense_data.recipient
+        db_recurring_expense.materials = recurring_expense_data.materials
+        db_recurring_expense.hours = recurring_expense_data.hours
+        db_recurring_expense.amount = recurring_expense_data.amount
+        db_recurring_expense.start_month = recurring_expense_data.start_month
+        db_recurring_expense.start_year = recurring_expense_data.start_year
+        db_recurring_expense.end_month = recurring_expense_data.end_month
+        db_recurring_expense.end_year = recurring_expense_data.end_year
+        db_recurring_expense.day_of_month = recurring_expense_data.day_of_month
+
+        await db.execute(
+            delete(RecurringExpenseTag).filter(
+                RecurringExpenseTag.recurring_expense_id == recurring_expense_id
+            )
+        )
+
+        if recurring_expense_data.tags:
+            for tag_name in recurring_expense_data.tags:
+                if tag_name and tag_name.strip():
+                    tag_name = tag_name.strip()
+
+                    user_tag_result = await db.execute(
+                        select(UserTag).filter(
+                            UserTag.user_id == current_user.id,
+                            UserTag.name == tag_name
+                        )
+                    )
+                    user_tag = user_tag_result.scalar_one_or_none()
+
+                    if not user_tag:
+                        user_tag = UserTag(
+                            name=tag_name,
+                            user_id=current_user.id
+                        )
+                        db.add(user_tag)
+                        await db.flush()
+
+                    recurring_expense_tag = RecurringExpenseTag(
+                        recurring_expense_id=recurring_expense_id,
+                        user_tag_id=user_tag.id
+                    )
+                    db.add(recurring_expense_tag)
+
+        await db.commit()
+
+        result = await db.execute(
+            select(RecurringExpense)
+            .options(joinedload(RecurringExpense.recurring_expense_tags))
+            .where(RecurringExpense.id == recurring_expense_id)
+        )
+        updated_recurring_expense = result.unique().scalar_one()
+        return updated_recurring_expense
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to update recurring expense: {str(e)}")
+
+@app.delete("/api/recurring-expenses/{recurring_expense_id}")
+async def delete_recurring_expense(
+    recurring_expense_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Delete a recurring expense (only if it belongs to current user).
+    """
+    try:
+        result = await db.execute(
+            select(RecurringExpense).filter(
+                RecurringExpense.id == recurring_expense_id,
+                RecurringExpense.user_id == current_user.id
+            )
+        )
+        recurring_expense = result.scalar_one_or_none()
+
+        if not recurring_expense:
+            raise HTTPException(status_code=404, detail="Recurring expense not found")
+
+        await db.delete(recurring_expense)
+        await db.commit()
+        return {"detail": "Recurring expense deleted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete recurring expense: {str(e)}")
 
 # Tag management endpoints
 @app.post("/api/tags", status_code=201)
