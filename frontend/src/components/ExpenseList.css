@@ -865,6 +865,11 @@
   white-space: nowrap;
 }
 
+.tag-badge.recurring-badge {
+  background: #fce7f3;
+  color: #be185d;
+}
+
 .tag-filter-section {
   flex: 1;
   min-width: 200px;

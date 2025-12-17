@@ -674,12 +674,15 @@ function ExpenseList({
                           />
                         ) : (
                           <div className="tags-display">
+                            {expense.recurring && (
+                              <span className="tag-badge recurring-badge">♻️ Recurring</span>
+                            )}
                             {expense.tags && expense.tags.length > 0 ? (
                               expense.tags.map((tag, idx) => (
                                 <span key={idx} className="tag-badge">{tag}</span>
                               ))
                             ) : (
-                              '—'
+                              !expense.recurring && '—'
                             )}
                           </div>
                         )}
@@ -710,8 +713,17 @@ function ExpenseList({
                             </>
                           ) : (
                             <>
-                              <button onClick={() => navigate(`/expenses/${expense.id}/edit`)} className="edit-button">
-                                Edit
+                              <button
+                                onClick={() => {
+                                  if (!expense.recurring) {
+                                    navigate(`/expenses/${expense.id}/edit`);
+                                  }
+                                }}
+                                className="edit-button"
+                                disabled={expense.recurring}
+                                title={expense.recurring ? 'Cannot edit recurring expense instances. Edit the template instead.' : 'Edit expense'}
+                              >
+                                {expense.recurring ? 'Template' : 'Edit'}
                               </button>
                               <button
                                 onClick={() => handleDuplicate(expense)}
@@ -726,9 +738,10 @@ function ExpenseList({
                                   description: expense.description,
                                   amount: expense.amount
                                 })}
-                                disabled={deletingId === expense.id}
+                                disabled={deletingId === expense.id || expense.recurring}
+                                title={expense.recurring ? 'Cannot delete recurring expense instances' : 'Delete expense'}
                               >
-                                {deletingId === expense.id ? 'Deleting...' : 'Delete'}
+                                {deletingId === expense.id ? 'Deleting...' : expense.recurring ? 'Recurring' : 'Delete'}
                               </button>
                             </>
                           )}
@@ -836,9 +849,12 @@ function ExpenseList({
                 </div>
 
                 {/* Tags at bottom */}
-                {expense.tags && expense.tags.length > 0 && (
+                {(expense.recurring || (expense.tags && expense.tags.length > 0)) && (
                   <div className="card-tags">
-                    {expense.tags.map((tag, idx) => (
+                    {expense.recurring && (
+                      <span className="tag-badge recurring-badge">♻️ Recurring</span>
+                    )}
+                    {expense.tags && expense.tags.map((tag, idx) => (
                       <span key={idx} className="tag-badge">{tag}</span>
                     ))}
                   </div>
