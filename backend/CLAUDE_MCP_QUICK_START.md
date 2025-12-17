@@ -116,13 +116,14 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 | Endpoint | Purpose | Auth |
 |----------|---------|------|
-| `/.well-known/mcp.json` | OAuth discovery | None |
-| `/oauth/authorize` | Start Google login | None |
-| `/oauth/callback` | Handle Google response | None |
-| `/oauth/token` | Get access token | OAuth code |
-| `/mcp/tools` | List available tools | JWT Token |
-| `/mcp/tools/call` | Execute a tool | JWT Token |
-| `/health` | Server status | None |
+| `/.well-known/mcp.json` | OAuth discovery + metadata | None |
+| `/oauth/authorize` | Start Google login flow | None |
+| `/oauth/callback` | Handle Google OAuth response | None |
+| `/oauth/token` | Exchange auth code for JWT | OAuth code |
+| `/oauth/revoke` | Revoke token | JWT token |
+| `/mcp/tools` | List available tools | Bearer token |
+| `/mcp/tools/call` | Execute a specific tool | Bearer token |
+| `/health` | Server status check | None |
 
 ## Security
 
@@ -146,13 +147,7 @@ Then in Claude config:
 {
   "mcpServers": {
     "expenses": {
-      "command": "python3",
-      "args": ["-m", "fastmcp"],
-      "env": {
-        "FASTMCP_URL": "https://expenses.arlint.dev/mcp-oauth/mcp",
-        "FASTMCP_AUTH_TYPE": "oauth",
-        "FASTMCP_METADATA_URI": "https://expenses.arlint.dev/mcp-oauth/.well-known/mcp.json"
-      }
+      "url": "https://expenses.arlint.dev/mcp-oauth/mcp"
     }
   }
 }

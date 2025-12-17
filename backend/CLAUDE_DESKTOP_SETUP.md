@@ -93,13 +93,7 @@ Add this to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "expenses": {
-      "command": "python3",
-      "args": ["-m", "fastmcp"],
-      "env": {
-        "FASTMCP_URL": "http://localhost:8001/mcp",
-        "FASTMCP_AUTH_TYPE": "oauth",
-        "FASTMCP_METADATA_URI": "http://localhost:8001/.well-known/mcp.json"
-      }
+      "url": "http://localhost:8001/mcp"
     }
   }
 }

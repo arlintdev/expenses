@@ -30,18 +30,11 @@ def get_config_path():
 
 def get_mcp_server_config():
     """Get the MCP server configuration."""
-    backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
     mcp_server_url = os.getenv("MCP_SERVER_URL", "http://localhost:8001")
 
     return {
         "expenses": {
-            "command": "python3",
-            "args": ["-m", "fastmcp"],
-            "env": {
-                "FASTMCP_URL": f"{mcp_server_url}/mcp",
-                "FASTMCP_AUTH_TYPE": "oauth",
-                "FASTMCP_METADATA_URI": f"{mcp_server_url}/.well-known/mcp.json",
-            }
+            "url": f"{mcp_server_url}/mcp"
         }
     }
 
@@ -77,12 +70,7 @@ def setup_claude_mcp():
 
     for server_name, server_config in mcp_config.items():
         print(f"\nServer: {server_name}")
-        print(f"  Command: {server_config.get('command')}")
-        print(f"  Args: {server_config.get('args')}")
-        print(f"  Environment Variables:")
-        for key, value in server_config.get("env", {}).items():
-            print(f"    - {key}: {value}")
-
+        print(f"  URL: {server_config.get('url')}")
         config["mcpServers"][server_name] = server_config
 
     print(f"\n💾 Saving configuration to {config_path}")
