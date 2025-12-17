@@ -246,8 +246,39 @@ except ImportError as e:
 except Exception as e:
     logger.warning("fastmcp_setup_error", error=str(e), error_type=type(e).__name__)
 
+async def startup_event():
+    await init_db()
+
+    try:
+        from models import is_postgres
+        if is_postgres:
+            from migrate_sqlite_to_postgres import check_and_migrate
+            migration_success = await check_and_migrate()
+            if migration_success:
+                logger.info("sqlite_to_postgres_migration_completed")
+    except Exception as e:
+        logger.warning("migration_check_failed", error=str(e), message="Continuing with initialization")
+
+    try:
+        from models import AsyncSessionLocal, is_postgres
+        from sqlalchemy import text
+        async with AsyncSessionLocal() as session:
+            if is_postgres:
+                result = await session.execute(text("SELECT version()"))
+                version = result.scalar()
+                logger.info("database_initialized", db_type="postgresql", version=version[:50])
+            else:
+                result = await session.execute(text("PRAGMA journal_mode"))
+                journal_mode = result.scalar()
+                logger.info("database_initialized", db_type="sqlite", journal_mode=journal_mode)
+                if journal_mode != "wal":
+                    logger.warning("wal_mode_not_enabled", current_mode=journal_mode)
+    except Exception as e:
+        logger.error("database_check_failed", error=str(e))
+
 @asynccontextmanager
 async def lifespan(fastapi_app: FastAPI):
+    await startup_event()
     if mcp:
         async with mcp.http_app(path="/mcp").lifespan(fastapi_app):
             yield
@@ -331,43 +362,6 @@ async def log_requests(request: Request, call_next):
 
         # Re-raise the exception so FastAPI can handle it
         raise
-
-# Initialize database on startup
-@app.on_event("startup")
-async def startup_event():
-    # Initialize database FIRST (create tables if needed)
-    await init_db()
-
-    # THEN check if we need to migrate from SQLite to PostgreSQL
-    try:
-        from models import is_postgres
-        if is_postgres:
-            from migrate_sqlite_to_postgres import check_and_migrate
-            migration_success = await check_and_migrate()
-            if migration_success:
-                logger.info("sqlite_to_postgres_migration_completed")
-    except Exception as e:
-        logger.warning("migration_check_failed", error=str(e), message="Continuing with initialization")
-
-    # Verify database connection
-    try:
-        from models import AsyncSessionLocal, is_postgres
-        from sqlalchemy import text
-        async with AsyncSessionLocal() as session:
-            if is_postgres:
-                # Check PostgreSQL version
-                result = await session.execute(text("SELECT version()"))
-                version = result.scalar()
-                logger.info("database_initialized", db_type="postgresql", version=version[:50])
-            else:
-                # Check SQLite WAL mode
-                result = await session.execute(text("PRAGMA journal_mode"))
-                journal_mode = result.scalar()
-                logger.info("database_initialized", db_type="sqlite", journal_mode=journal_mode)
-                if journal_mode != "wal":
-                    logger.warning("wal_mode_not_enabled", current_mode=journal_mode)
-    except Exception as e:
-        logger.error("database_check_failed", error=str(e))
 
 # Initialize Claude service
 claude_service = ClaudeService()
