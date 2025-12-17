@@ -352,7 +352,7 @@ function AddMileageModal({ isOpen, onClose, onMileageAdded, apiUrl }) {
         },
         body: JSON.stringify({
           vehicle_id: dataToSubmit.vehicle_id,
-          date: new Date(dataToSubmit.date).toISOString(),
+          date: `${dataToSubmit.date}T00:00:00`,
           purpose: dataToSubmit.purpose,
           odometer_start: start,
           odometer_end: end,
