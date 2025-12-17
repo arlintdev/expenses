@@ -842,20 +842,56 @@ async def get_expenses(
                 query = query.filter(tag_exists)
 
         query = query.order_by(Expense.date.desc()).offset(skip).limit(limit)
-        result = await db.execute(query)
-        expenses = result.unique().scalars().all()  # unique() prevents duplicates from joins
+        try:
+            result = await db.execute(query)
+            expenses = result.unique().scalars().all()  # unique() prevents duplicates from joins
+        except Exception as column_error:
+            # If columns don't exist yet (before migration), run simpler query
+            if "column" in str(column_error) and "does not exist" in str(column_error):
+                logger.debug(f"Columns not yet migrated, using fallback query: {str(column_error)}")
+                # Fallback to basic query without the new columns
+                basic_query = select(Expense).filter(
+                    Expense.user_id == current_user.id,
+                    Expense.amount > 0,
+                    ~Expense.description.like("[Tag holder for:%")
+                ).options(joinedload(Expense.expense_tags).joinedload(ExpenseTag.user_tag))
+                if year and month:
+                    from datetime import datetime
+                    month_int = int(month)
+                    start_date = datetime(year, month_int, 1)
+                    if month_int == 12:
+                        end_date = datetime(year + 1, 1, 1)
+                    else:
+                        end_date = datetime(year, month_int + 1, 1)
+                    basic_query = basic_query.filter(Expense.date >= start_date, Expense.date < end_date)
+                elif year:
+                    from datetime import datetime
+                    start_date = datetime(year, 1, 1)
+                    end_date = datetime(year + 1, 1, 1)
+                    basic_query = basic_query.filter(Expense.date >= start_date, Expense.date < end_date)
+                basic_query = basic_query.order_by(Expense.date.desc()).offset(skip).limit(limit)
+                result = await db.execute(basic_query)
+                expenses = result.unique().scalars().all()
+            else:
+                raise
 
         # Fetch recurring expenses and expand them
-        recurring_query = select(RecurringExpense).filter(
-            RecurringExpense.user_id == current_user.id
-        )
-        recurring_result = await db.execute(
-            recurring_query.options(
-                joinedload(RecurringExpense.recurring_expense_tags).joinedload(RecurringExpenseTag.user_tag)
+        expanded_recurring = []
+        try:
+            recurring_query = select(RecurringExpense).filter(
+                RecurringExpense.user_id == current_user.id
             )
-        )
-        recurring_expenses = recurring_result.unique().scalars().all()
-        expanded_recurring = expand_recurring_expenses(recurring_expenses, current_user.id)
+            recurring_result = await db.execute(
+                recurring_query.options(
+                    joinedload(RecurringExpense.recurring_expense_tags).joinedload(RecurringExpenseTag.user_tag)
+                )
+            )
+            recurring_expenses = recurring_result.unique().scalars().all()
+            expanded_recurring = expand_recurring_expenses(recurring_expenses, current_user.id)
+        except Exception as migration_error:
+            # If recurring expenses table doesn't exist yet (before migration), just use regular expenses
+            logger.debug(f"Recurring expenses not available yet: {str(migration_error)}")
+            expanded_recurring = []
 
         # Combine and sort by date
         all_expenses = list(expenses) + expanded_recurring
