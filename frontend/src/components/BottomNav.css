@@ -82,8 +82,87 @@
   transform: translateY(-2px);
 }
 
+.menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1999;
+  animation: fadeIn 0.2s ease;
+}
+
+.add-menu {
+  position: fixed;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  z-index: 2000;
+  overflow: hidden;
+  animation: slideUp 0.3s ease;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 32px;
+  border: none;
+  background: white;
+  width: 100%;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.menu-item:first-child {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.menu-item.expense-item {
+  color: #667eea;
+}
+
+.menu-item.mileage-item {
+  color: #4caf50;
+}
+
+.menu-item:hover {
+  background: #f9f9f9;
+}
+
+.menu-item:active {
+  background: #f0f0f0;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateX(-50%) translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
 @media (min-width: 768px) {
   .bottom-nav {
+    display: none;
+  }
+
+  .menu-overlay,
+  .add-menu {
     display: none;
   }
 }
@@ -111,4 +190,25 @@
 
 [data-theme="dark"] .add-button {
   border-color: #1a1a1a;
+}
+
+[data-theme="dark"] .add-menu {
+  background: #2a2a2a;
+}
+
+[data-theme="dark"] .menu-item {
+  background: #2a2a2a;
+  color: #e0e0e0;
+}
+
+[data-theme="dark"] .menu-item:first-child {
+  border-bottom-color: #444;
+}
+
+[data-theme="dark"] .menu-item:hover {
+  background: #333;
+}
+
+[data-theme="dark"] .menu-item:active {
+  background: #3a3a3a;
 }

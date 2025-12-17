@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { MdDescription, MdPerson, MdBuild, MdAccessTime, MdLocalOffer, MdCheckBox, MdDeleteOutline, MdAttachMoney, MdListAlt, MdTrendingUp, MdArrowUpward, MdArrowDownward } from 'react-icons/md';
+import { MdDescription, MdPerson, MdBuild, MdAccessTime, MdLocalOffer, MdCheckBox, MdDeleteOutline, MdAttachMoney, MdListAlt, MdTrendingUp, MdArrowUpward, MdArrowDownward, MdLoop } from 'react-icons/md';
 import TagInput from './TagInput';
 import DeleteConfirmation from './DeleteConfirmation';
 import './ExpenseList.css';
@@ -675,7 +675,10 @@ function ExpenseList({
                         ) : (
                           <div className="tags-display">
                             {expense.recurring && (
-                              <span className="tag-badge recurring-badge">♻️ Recurring</span>
+                              <span className="tag-badge recurring-badge">
+                                <MdLoop style={{marginRight: '4px'}} />
+                                Recurring
+                              </span>
                             )}
                             {expense.tags && expense.tags.length > 0 ? (
                               expense.tags.map((tag, idx) => (
@@ -852,7 +855,10 @@ function ExpenseList({
                 {(expense.recurring || (expense.tags && expense.tags.length > 0)) && (
                   <div className="card-tags">
                     {expense.recurring && (
-                      <span className="tag-badge recurring-badge">♻️ Recurring</span>
+                      <span className="tag-badge recurring-badge">
+                        <MdLoop style={{marginRight: '4px'}} />
+                        Recurring
+                      </span>
                     )}
                     {expense.tags && expense.tags.map((tag, idx) => (
                       <span key={idx} className="tag-badge">{tag}</span>

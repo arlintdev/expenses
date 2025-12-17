@@ -18,14 +18,17 @@ import csv
 import io
 import uuid6
 
-from models import init_db, get_db, Expense, User, UserTag, ExpenseTag, AsyncSessionLocal, RecurringExpense, RecurringExpenseTag
+from models import init_db, get_db, Expense, User, UserTag, ExpenseTag, AsyncSessionLocal, RecurringExpense, RecurringExpenseTag, Vehicle, MileageLog, MileageLogTag, IRSMileageRate
 from schemas import (
     ExpenseCreate, ExpenseResponse, VoiceTranscriptionResponse,
     GoogleAuthRequest, AuthResponse, UserResponse,
     SummaryStats, TagSpending, ByTagResponse, DateSpending, ByDateResponse,
     TagCreate, SubmitCsvResponse, CsvRowResult,
     AdminUserSummary, AdminUsersResponse,
-    RecurringExpenseCreate, RecurringExpenseResponse
+    RecurringExpenseCreate, RecurringExpenseResponse,
+    VehicleCreate, VehicleUpdate, VehicleResponse,
+    MileageLogCreate, MileageLogUpdate, MileageLogResponse,
+    IRSMileageRateResponse
 )
 from claude_service import ClaudeService
 from auth import verify_google_token, create_access_token, get_current_user, get_or_create_user, get_admin_user
@@ -774,10 +777,10 @@ async def create_expense(
         await db.commit()
         expense_id = db_expense.id
 
-        # Reload expense with tags
+        # Reload expense with tags (eagerly load relationships)
         result = await db.execute(
             select(Expense)
-            .options(joinedload(Expense.expense_tags))
+            .options(joinedload(Expense.expense_tags).joinedload(ExpenseTag.user_tag))
             .where(Expense.id == expense_id)
         )
         created_expense = result.unique().scalar_one()
@@ -2047,6 +2050,426 @@ async def submit_csv_stream(
         media_type="application/x-ndjson",
         headers={"X-Content-Type-Options": "nosniff"}
     )
+
+# ===== Vehicle Endpoints =====
+
+@app.get("/api/vehicles", response_model=List[VehicleResponse])
+async def get_vehicles(
+    active_only: bool = True,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all vehicles for current user. Filter by active status."""
+    query = select(Vehicle).filter(Vehicle.user_id == current_user.id)
+    if active_only:
+        query = query.filter(Vehicle.is_active == True)
+    query = query.order_by(Vehicle.name)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+@app.post("/api/vehicles", response_model=VehicleResponse, status_code=201)
+async def create_vehicle(
+    vehicle: VehicleCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a new vehicle for current user."""
+    db_vehicle = Vehicle(
+        name=vehicle.name,
+        make=vehicle.make,
+        model=vehicle.model,
+        year=vehicle.year,
+        license_plate=vehicle.license_plate,
+        user_id=current_user.id
+    )
+    db.add(db_vehicle)
+    await db.commit()
+    await db.refresh(db_vehicle)
+    return db_vehicle
+
+@app.get("/api/vehicles/{vehicle_id}", response_model=VehicleResponse)
+async def get_vehicle(
+    vehicle_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get vehicle by ID (only if belongs to user)."""
+    result = await db.execute(
+        select(Vehicle).filter(
+            Vehicle.id == vehicle_id,
+            Vehicle.user_id == current_user.id
+        )
+    )
+    vehicle = result.scalar_one_or_none()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    return vehicle
+
+@app.patch("/api/vehicles/{vehicle_id}", response_model=VehicleResponse)
+async def update_vehicle(
+    vehicle_id: str,
+    vehicle_update: VehicleUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update vehicle (only if belongs to user)."""
+    result = await db.execute(
+        select(Vehicle).filter(
+            Vehicle.id == vehicle_id,
+            Vehicle.user_id == current_user.id
+        )
+    )
+    vehicle = result.scalar_one_or_none()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    update_data = vehicle_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(vehicle, key, value)
+
+    await db.commit()
+    await db.refresh(vehicle)
+    return vehicle
+
+@app.delete("/api/vehicles/{vehicle_id}", status_code=204)
+async def delete_vehicle(
+    vehicle_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Soft delete vehicle (sets is_active=False)."""
+    result = await db.execute(
+        select(Vehicle).filter(
+            Vehicle.id == vehicle_id,
+            Vehicle.user_id == current_user.id
+        )
+    )
+    vehicle = result.scalar_one_or_none()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    vehicle.is_active = False
+    await db.commit()
+    return None
+
+# ===== Mileage Log Helper Functions =====
+
+async def get_current_irs_rate(db: AsyncSession, year: int = None) -> float:
+    """Get IRS mileage rate for given year (defaults to current year)."""
+    if year is None:
+        year = datetime.utcnow().year
+
+    result = await db.execute(
+        select(IRSMileageRate).filter(IRSMileageRate.year == year)
+    )
+    rate_record = result.scalar_one_or_none()
+
+    if rate_record:
+        return rate_record.rate
+
+    # Default fallback rate if not in DB
+    return 0.67  # 2025 rate
+
+async def create_linked_expense_from_mileage(
+    mileage_log: MileageLog,
+    user_tag_ids: list,
+    db: AsyncSession
+) -> Expense:
+    """Create expense record from mileage log."""
+    description = f"Mileage: {mileage_log.purpose} ({mileage_log.business_miles} mi @ ${mileage_log.irs_rate}/mi)"
+
+    expense = Expense(
+        user_id=mileage_log.user_id,
+        description=description,
+        recipient="IRS Mileage Deduction",
+        materials=None,
+        hours=None,
+        amount=mileage_log.deductible_amount,
+        date=mileage_log.date
+    )
+    db.add(expense)
+    await db.flush()
+
+    # Copy tags from mileage log to expense
+    for user_tag_id in user_tag_ids:
+        expense_tag = ExpenseTag(
+            expense_id=expense.id,
+            user_tag_id=user_tag_id
+        )
+        db.add(expense_tag)
+
+    return expense
+
+# ===== Mileage Log Endpoints =====
+
+@app.get("/api/mileage-logs", response_model=List[MileageLogResponse])
+async def get_mileage_logs(
+    skip: int = 0,
+    limit: int = 20,
+    vehicle_id: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get mileage logs with filters."""
+    query = select(MileageLog).filter(MileageLog.user_id == current_user.id)
+    query = query.options(
+        joinedload(MileageLog.mileage_log_tags).joinedload(MileageLogTag.user_tag)
+    )
+
+    if vehicle_id:
+        query = query.filter(MileageLog.vehicle_id == vehicle_id)
+
+    if date_from:
+        parsed_date_from = datetime.fromisoformat(date_from)
+        query = query.filter(MileageLog.date >= parsed_date_from)
+
+    if date_to:
+        parsed_date_to = datetime.fromisoformat(date_to)
+        query = query.filter(MileageLog.date < parsed_date_to + timedelta(days=1))
+
+    query = query.order_by(MileageLog.date.desc()).offset(skip).limit(limit)
+    result = await db.execute(query)
+    return result.unique().scalars().all()
+
+@app.post("/api/mileage-logs", response_model=MileageLogResponse, status_code=201)
+async def create_mileage_log(
+    mileage_log: MileageLogCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Create mileage log and auto-generate linked expense."""
+    # Verify vehicle belongs to user
+    vehicle_result = await db.execute(
+        select(Vehicle).filter(
+            Vehicle.id == mileage_log.vehicle_id,
+            Vehicle.user_id == current_user.id
+        )
+    )
+    vehicle = vehicle_result.scalar_one_or_none()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    # Get current IRS rate
+    year = mileage_log.date.year
+    irs_rate = await get_current_irs_rate(db, year)
+
+    # Create mileage log
+    db_mileage_log = MileageLog(
+        user_id=current_user.id,
+        vehicle_id=mileage_log.vehicle_id,
+        date=mileage_log.date,
+        purpose=mileage_log.purpose,
+        odometer_start=mileage_log.odometer_start,
+        odometer_end=mileage_log.odometer_end,
+        personal_miles=mileage_log.personal_miles,
+        irs_rate=irs_rate
+    )
+    db.add(db_mileage_log)
+    await db.flush()
+
+    # Add tags and collect user_tag_ids
+    user_tag_ids = []
+    if mileage_log.tags:
+        for tag_name in mileage_log.tags:
+            if tag_name and tag_name.strip():
+                tag_name = tag_name.strip()
+
+                # Get or create UserTag
+                user_tag_result = await db.execute(
+                    select(UserTag).filter(
+                        UserTag.user_id == current_user.id,
+                        UserTag.name == tag_name
+                    )
+                )
+                user_tag = user_tag_result.scalar_one_or_none()
+
+                if not user_tag:
+                    user_tag = UserTag(name=tag_name, user_id=current_user.id)
+                    db.add(user_tag)
+                    await db.flush()
+
+                mileage_log_tag = MileageLogTag(
+                    mileage_log_id=db_mileage_log.id,
+                    user_tag_id=user_tag.id
+                )
+                db.add(mileage_log_tag)
+                user_tag_ids.append(user_tag.id)
+
+    await db.flush()
+
+    # Create linked expense
+    linked_expense = await create_linked_expense_from_mileage(db_mileage_log, user_tag_ids, db)
+    db_mileage_log.linked_expense_id = linked_expense.id
+
+    # Update vehicle's last odometer reading
+    vehicle.last_odometer_reading = mileage_log.odometer_end
+
+    await db.commit()
+
+    # Reload with relationships
+    result = await db.execute(
+        select(MileageLog)
+        .options(joinedload(MileageLog.mileage_log_tags).joinedload(MileageLogTag.user_tag))
+        .where(MileageLog.id == db_mileage_log.id)
+    )
+    return result.unique().scalar_one()
+
+@app.get("/api/mileage-logs/{log_id}", response_model=MileageLogResponse)
+async def get_mileage_log(
+    log_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get mileage log by ID."""
+    result = await db.execute(
+        select(MileageLog)
+        .options(joinedload(MileageLog.mileage_log_tags).joinedload(MileageLogTag.user_tag))
+        .filter(
+            MileageLog.id == log_id,
+            MileageLog.user_id == current_user.id
+        )
+    )
+    log = result.unique().scalar_one_or_none()
+    if not log:
+        raise HTTPException(status_code=404, detail="Mileage log not found")
+    return log
+
+@app.patch("/api/mileage-logs/{log_id}", response_model=MileageLogResponse)
+async def update_mileage_log(
+    log_id: str,
+    log_update: MileageLogUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update mileage log and sync linked expense."""
+    result = await db.execute(
+        select(MileageLog)
+        .options(joinedload(MileageLog.mileage_log_tags))
+        .filter(
+            MileageLog.id == log_id,
+            MileageLog.user_id == current_user.id
+        )
+    )
+    log = result.unique().scalar_one_or_none()
+    if not log:
+        raise HTTPException(status_code=404, detail="Mileage log not found")
+
+    # Update fields
+    update_data = log_update.model_dump(exclude_unset=True, exclude={'tags'})
+    for key, value in update_data.items():
+        setattr(log, key, value)
+
+    # Update tags if provided
+    if log_update.tags is not None:
+        await db.execute(delete(MileageLogTag).where(MileageLogTag.mileage_log_id == log_id))
+        await db.flush()
+
+        for tag_name in log_update.tags:
+            if tag_name and tag_name.strip():
+                tag_name = tag_name.strip()
+
+                user_tag_result = await db.execute(
+                    select(UserTag).filter(
+                        UserTag.user_id == current_user.id,
+                        UserTag.name == tag_name
+                    )
+                )
+                user_tag = user_tag_result.scalar_one_or_none()
+
+                if not user_tag:
+                    user_tag = UserTag(name=tag_name, user_id=current_user.id)
+                    db.add(user_tag)
+                    await db.flush()
+
+                mileage_log_tag = MileageLogTag(
+                    mileage_log_id=log_id,
+                    user_tag_id=user_tag.id
+                )
+                db.add(mileage_log_tag)
+
+    await db.flush()
+
+    # Update linked expense
+    if log.linked_expense_id:
+        expense_result = await db.execute(
+            select(Expense).filter(Expense.id == log.linked_expense_id)
+        )
+        expense = expense_result.scalar_one_or_none()
+        if expense:
+            expense.description = f"Mileage: {log.purpose} ({log.business_miles} mi @ ${log.irs_rate}/mi)"
+            expense.amount = log.deductible_amount
+            expense.date = log.date
+
+            # Sync tags
+            await db.execute(delete(ExpenseTag).where(ExpenseTag.expense_id == expense.id))
+            await db.flush()
+
+            for mileage_tag in log.mileage_log_tags:
+                expense_tag = ExpenseTag(
+                    expense_id=expense.id,
+                    user_tag_id=mileage_tag.user_tag_id
+                )
+                db.add(expense_tag)
+
+    await db.commit()
+
+    # Reload
+    result = await db.execute(
+        select(MileageLog)
+        .options(joinedload(MileageLog.mileage_log_tags).joinedload(MileageLogTag.user_tag))
+        .where(MileageLog.id == log_id)
+    )
+    return result.unique().scalar_one()
+
+@app.delete("/api/mileage-logs/{log_id}", status_code=204)
+async def delete_mileage_log(
+    log_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete mileage log and linked expense."""
+    result = await db.execute(
+        select(MileageLog).filter(
+            MileageLog.id == log_id,
+            MileageLog.user_id == current_user.id
+        )
+    )
+    log = result.scalar_one_or_none()
+    if not log:
+        raise HTTPException(status_code=404, detail="Mileage log not found")
+
+    # Delete linked expense first
+    if log.linked_expense_id:
+        await db.execute(delete(Expense).where(Expense.id == log.linked_expense_id))
+
+    await db.delete(log)
+    await db.commit()
+    return None
+
+# ===== IRS Rate Endpoints =====
+
+@app.get("/api/irs-rates", response_model=List[IRSMileageRateResponse])
+async def get_irs_rates(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all IRS mileage rates."""
+    result = await db.execute(
+        select(IRSMileageRate).order_by(IRSMileageRate.year.desc())
+    )
+    return result.scalars().all()
+
+@app.get("/api/irs-rates/current")
+async def get_current_rate(
+    year: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get IRS rate for specific year (defaults to current year)."""
+    rate = await get_current_irs_rate(db, year)
+    return {"year": year or datetime.utcnow().year, "rate": rate}
 
 # Mount static files for serving frontend (Docker deployment)
 static_dir = Path(__file__).parent / "static"

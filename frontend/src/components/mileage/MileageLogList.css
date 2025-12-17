@@ -1,0 +1,322 @@
+.mileage-log-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  overflow: hidden;
+  background: #f5f5f5;
+  gap: 1rem;
+}
+
+.list-header {
+  margin-bottom: 24px;
+}
+
+.list-header h2 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.filters {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-group label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+}
+
+.filter-group select,
+.filter-group input[type="date"] {
+  padding: 10px 14px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  min-width: 180px;
+}
+
+.filter-group select:focus,
+.filter-group input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.clear-filters {
+  padding: 10px 20px;
+  background: #f5f5f5;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.clear-filters:hover {
+  background: #e0e0e0;
+}
+
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.summary-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.summary-value {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.summary-label {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.logs-list {
+  display: grid;
+  gap: 16px;
+}
+
+.log-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.log-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.log-date,
+.log-vehicle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #666;
+}
+
+.log-purpose {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #333;
+}
+
+.log-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-label {
+  font-size: 12px;
+  color: #999;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.detail-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.detail-value.highlight {
+  color: #667eea;
+}
+
+.detail-value.deduction {
+  color: #4caf50;
+  font-size: 18px;
+}
+
+.log-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.log-tags svg {
+  color: #999;
+}
+
+.tag {
+  display: inline-block;
+  padding: 4px 12px;
+  background: #f0f0f0;
+  border-radius: 16px;
+  font-size: 13px;
+  color: #666;
+}
+
+.log-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.expense-link {
+  font-size: 13px;
+  color: #4caf50;
+  font-weight: 500;
+}
+
+.delete-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid #ff5252;
+  color: #ff5252;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.delete-button:hover {
+  background: #ff5252;
+  color: white;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #999;
+}
+
+.empty-state svg {
+  opacity: 0.3;
+  margin-bottom: 16px;
+}
+
+.empty-state p {
+  font-size: 16px;
+  margin: 0;
+}
+
+.loading {
+  text-align: center;
+  padding: 60px 20px;
+  font-size: 16px;
+  color: #666;
+}
+
+[data-theme="dark"] .log-card {
+  background: #2a2a2a;
+}
+
+[data-theme="dark"] .log-purpose,
+[data-theme="dark"] .detail-value {
+  color: #e0e0e0;
+}
+
+[data-theme="dark"] .filter-group select,
+[data-theme="dark"] .filter-group input {
+  background: #1a1a1a;
+  border-color: #444;
+  color: #e0e0e0;
+}
+
+[data-theme="dark"] .clear-filters {
+  background: #444;
+  color: #e0e0e0;
+}
+
+[data-theme="dark"] .tag {
+  background: #444;
+  color: #e0e0e0;
+}
+
+[data-theme="dark"] .log-header {
+  border-bottom-color: #444;
+}
+
+[data-theme="dark"] .log-tags,
+[data-theme="dark"] .log-actions {
+  border-top-color: #444;
+}
+
+[data-theme="dark"] .mileage-log-list {
+  background: #111111;
+}
+
+@media (min-width: 768px) {
+  .mileage-log-list {
+    padding: 2rem;
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .mileage-log-list {
+    padding: 16px;
+  }
+
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-group select,
+  .filter-group input {
+    width: 100%;
+  }
+
+  .summary-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .log-details {
+    grid-template-columns: 1fr;
+  }
+}

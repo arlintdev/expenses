@@ -167,3 +167,118 @@ class AdminUsersResponse(BaseModel):
 # Tag schemas
 class TagCreate(BaseModel):
     name: str = Field(..., min_length=1, description="Tag name")
+
+# Vehicle schemas
+class VehicleBase(BaseModel):
+    name: str = Field(..., min_length=1, description="Vehicle name/identifier")
+    make: Optional[str] = Field(None, description="Vehicle make")
+    model: Optional[str] = Field(None, description="Vehicle model")
+    year: Optional[int] = Field(None, ge=1900, le=2100, description="Vehicle year")
+    license_plate: Optional[str] = Field(None, description="License plate number")
+
+class VehicleCreate(VehicleBase):
+    pass
+
+class VehicleUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1)
+    make: Optional[str] = None
+    model: Optional[str] = None
+    year: Optional[int] = Field(None, ge=1900, le=2100)
+    license_plate: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class VehicleResponse(VehicleBase):
+    id: str
+    user_id: str
+    last_odometer_reading: Optional[int] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+# Mileage Log schemas
+class MileageLogBase(BaseModel):
+    vehicle_id: str = Field(..., description="Vehicle UUID")
+    date: datetime = Field(..., description="Date of trip")
+    purpose: str = Field(..., min_length=1, description="Business purpose")
+    odometer_start: int = Field(..., ge=0, description="Starting odometer reading")
+    odometer_end: int = Field(..., ge=0, description="Ending odometer reading")
+    personal_miles: int = Field(default=0, ge=0, description="Personal miles during trip")
+    tags: Optional[List[str]] = Field(default_factory=list, description="Tags for categorization")
+
+    @field_validator('date')
+    @classmethod
+    def strip_timezone(cls, v):
+        """Strip timezone info for PostgreSQL TIMESTAMP WITHOUT TIME ZONE compatibility."""
+        if v and v.tzinfo is not None:
+            return v.replace(tzinfo=None)
+        return v
+
+    @field_validator('odometer_end')
+    @classmethod
+    def validate_odometer(cls, v, info):
+        if 'odometer_start' in info.data and v <= info.data['odometer_start']:
+            raise ValueError("odometer_end must be greater than odometer_start")
+        return v
+
+    @field_validator('personal_miles')
+    @classmethod
+    def validate_personal_miles(cls, v, info):
+        if 'odometer_start' in info.data and 'odometer_end' in info.data:
+            total_miles = info.data['odometer_end'] - info.data['odometer_start']
+            if v > total_miles:
+                raise ValueError("personal_miles cannot exceed total trip miles")
+        return v
+
+class MileageLogCreate(MileageLogBase):
+    pass
+
+class MileageLogUpdate(BaseModel):
+    vehicle_id: Optional[str] = None
+    date: Optional[datetime] = None
+    purpose: Optional[str] = Field(None, min_length=1)
+    odometer_start: Optional[int] = Field(None, ge=0)
+    odometer_end: Optional[int] = Field(None, ge=0)
+    personal_miles: Optional[int] = Field(None, ge=0)
+    tags: Optional[List[str]] = None
+
+class MileageLogResponse(BaseModel):
+    id: str
+    user_id: str
+    vehicle_id: str
+    date: datetime
+    purpose: str
+    odometer_start: int
+    odometer_end: int
+    personal_miles: int
+    business_miles: int
+    irs_rate: float
+    deductible_amount: float
+    linked_expense_id: Optional[str] = None
+    tags: List[str] = []
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+    @field_validator('tags', mode='before')
+    @classmethod
+    def extract_tag_names(cls, v):
+        if isinstance(v, list) and len(v) > 0:
+            if hasattr(v[0], 'user_tag'):
+                return [mlt.user_tag.name for mlt in v if mlt.user_tag]
+            if isinstance(v[0], str):
+                return v
+        return v if v else []
+
+# IRS Rate Schema
+class IRSMileageRateResponse(BaseModel):
+    id: str
+    year: int
+    rate: float
+    effective_date: datetime
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
