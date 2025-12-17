@@ -126,6 +126,8 @@ class Expense(Base):
     hours = Column(Float, nullable=True)
     amount = Column(Float, nullable=False)
     date = Column(DateTime, nullable=False, default=datetime.utcnow)
+    recurring = Column(Boolean, default=False, nullable=False)
+    recurring_expense_id = Column(String(36), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

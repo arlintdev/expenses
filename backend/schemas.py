@@ -42,6 +42,8 @@ class ExpenseResponse(ExpenseBase):
     materials: Optional[str]
     hours: Optional[float]
     tags: List[str] = []
+    recurring: bool = False
+    recurring_expense_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     date: datetime

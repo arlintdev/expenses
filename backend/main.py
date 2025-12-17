@@ -16,6 +16,7 @@ import time
 import structlog
 import csv
 import io
+import uuid6
 
 from models import init_db, get_db, Expense, User, UserTag, ExpenseTag, AsyncSessionLocal, RecurringExpense, RecurringExpenseTag
 from schemas import (
@@ -50,6 +51,73 @@ structlog.configure(
 
 # Get a logger
 logger = structlog.get_logger()
+
+def expand_recurring_expenses(recurring_expenses: List[RecurringExpense], user_id: str) -> List[Expense]:
+    """
+    Expand recurring expenses into individual Expense objects for months prior to today.
+    Returns a list of Expense objects with recurring flag set to True.
+    """
+    from calendar import monthrange
+
+    expanded = []
+    today = datetime.utcnow()
+
+    for recurring in recurring_expenses:
+        # Start from the start month/year
+        current_year = recurring.start_year
+        current_month = recurring.start_month
+
+        while True:
+            # Check if we've gone past the end month/year
+            if current_year > recurring.end_year or (
+                current_year == recurring.end_year and current_month > recurring.end_month
+            ):
+                break
+
+            # Calculate the day (cap at last day of month if needed)
+            days_in_month = monthrange(current_year, current_month)[1]
+            day = min(recurring.day_of_month, days_in_month)
+
+            # Create the expense date
+            expense_date = datetime(current_year, current_month, day)
+
+            # Only include if the date is in the past (before today)
+            if expense_date < today:
+                expense = Expense(
+                    id=str(uuid6.uuid6()),
+                    user_id=user_id,
+                    description=recurring.description,
+                    recipient=recurring.recipient,
+                    materials=recurring.materials,
+                    hours=recurring.hours,
+                    amount=recurring.amount,
+                    date=expense_date,
+                    recurring=True,
+                    recurring_expense_id=recurring.id,
+                    created_at=expense_date,
+                    updated_at=datetime.utcnow()
+                )
+
+                # Add tags from the recurring expense
+                for recurring_expense_tag in recurring.recurring_expense_tags:
+                    expense_tag = ExpenseTag(
+                        id=str(uuid6.uuid6()),
+                        expense_id=expense.id,
+                        user_tag_id=recurring_expense_tag.user_tag_id,
+                        created_at=expense_date,
+                        updated_at=datetime.utcnow()
+                    )
+                    expense.expense_tags.append(expense_tag)
+
+                expanded.append(expense)
+
+            # Move to next month
+            current_month += 1
+            if current_month > 12:
+                current_month = 1
+                current_year += 1
+
+    return expanded
 
 app = FastAPI(title="Expense Tracker API", version="1.0.0")
 
@@ -429,35 +497,57 @@ async def get_summary_stats(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get summary statistics for the current user's expenses.
+    Get summary statistics for the current user's expenses including recurring.
     date_from: ISO format date string (YYYY-MM-DD)
     date_to: ISO format date string (YYYY-MM-DD)
     """
     try:
-        query = select(
-            func.coalesce(func.sum(Expense.amount), 0).label('total_amount'),
-            func.count(Expense.id).label('expense_count'),
-            func.coalesce(func.avg(Expense.amount), 0).label('average_amount')
-        ).filter(Expense.user_id == current_user.id)
-
         parsed_date_from = None
         parsed_date_to = None
 
         if date_from:
             parsed_date_from = datetime.fromisoformat(date_from)
-            query = query.filter(Expense.date >= parsed_date_from)
-
         if date_to:
             parsed_date_to = datetime.fromisoformat(date_to)
+
+        query = select(Expense).filter(Expense.user_id == current_user.id)
+
+        if parsed_date_from:
+            query = query.filter(Expense.date >= parsed_date_from)
+        if parsed_date_to:
             query = query.filter(Expense.date < parsed_date_to + timedelta(days=1))
 
         result = await db.execute(query)
-        row = result.first()
+        expenses = result.scalars().all()
+
+        # Fetch recurring expenses
+        recurring_query = select(RecurringExpense).filter(
+            RecurringExpense.user_id == current_user.id
+        )
+        recurring_result = await db.execute(
+            recurring_query.options(
+                joinedload(RecurringExpense.recurring_expense_tags).joinedload(RecurringExpenseTag.user_tag)
+            )
+        )
+        recurring_expenses = recurring_result.unique().scalars().all()
+        expanded_recurring = expand_recurring_expenses(recurring_expenses, current_user.id)
+
+        # Filter expanded recurring by date range
+        if parsed_date_from:
+            expanded_recurring = [e for e in expanded_recurring if e.date >= parsed_date_from]
+        if parsed_date_to:
+            expanded_recurring = [e for e in expanded_recurring if e.date < parsed_date_to + timedelta(days=1)]
+
+        all_expenses = list(expenses) + expanded_recurring
+
+        total_amount = sum(e.amount for e in all_expenses)
+        count = len(all_expenses)
+        average_amount = total_amount / count if count > 0 else 0.0
 
         return SummaryStats(
-            total_amount=float(row.total_amount) if row.total_amount else 0.0,
-            expense_count=int(row.expense_count) if row.expense_count else 0,
-            average_amount=float(row.average_amount) if row.average_amount else 0.0,
+            total_amount=total_amount,
+            expense_count=count,
+            average_amount=average_amount,
             date_from=parsed_date_from,
             date_to=parsed_date_to
         )
@@ -472,85 +562,83 @@ async def get_spending_by_tag(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get spending grouped by tag for the current user.
+    Get spending grouped by tag for the current user including recurring expenses.
     Returns tags with their total spending and percentage of total.
     """
     try:
-        # First get total amount for percentage calculation
-        total_query = select(
-            func.coalesce(func.sum(Expense.amount), 0).label('total')
-        ).filter(Expense.user_id == current_user.id)
+        parsed_date_from = None
+        parsed_date_to = None
 
         if date_from:
             parsed_date_from = datetime.fromisoformat(date_from)
-            total_query = total_query.filter(Expense.date >= parsed_date_from)
-
         if date_to:
             parsed_date_to = datetime.fromisoformat(date_to)
-            total_query = total_query.filter(Expense.date < parsed_date_to + timedelta(days=1))
 
-        total_result = await db.execute(total_query)
-        total_amount = float(total_result.scalar() or 0.0)
-
-        # Query spending by tag (using new UserTag + ExpenseTag system)
-        query = select(
-            UserTag.name,
-            func.sum(Expense.amount).label('total_amount'),
-            func.count(Expense.id).label('expense_count')
-        ).join(ExpenseTag, UserTag.id == ExpenseTag.user_tag_id
-        ).join(Expense, ExpenseTag.expense_id == Expense.id
-        ).filter(
-            Expense.user_id == current_user.id,
-            UserTag.user_id == current_user.id
-        ).group_by(UserTag.name).order_by(func.sum(Expense.amount).desc())
-
-        if date_from:
-            parsed_date_from = datetime.fromisoformat(date_from)
+        # Get all expenses (including recurring expanded)
+        query = select(Expense).filter(Expense.user_id == current_user.id)
+        if parsed_date_from:
             query = query.filter(Expense.date >= parsed_date_from)
-
-        if date_to:
-            parsed_date_to = datetime.fromisoformat(date_to)
+        if parsed_date_to:
             query = query.filter(Expense.date < parsed_date_to + timedelta(days=1))
 
-        result = await db.execute(query)
-        rows = result.all()
+        result = await db.execute(
+            query.options(joinedload(Expense.expense_tags).joinedload(ExpenseTag.user_tag))
+        )
+        expenses = result.unique().scalars().all()
+
+        # Get recurring expenses
+        recurring_query = select(RecurringExpense).filter(
+            RecurringExpense.user_id == current_user.id
+        )
+        recurring_result = await db.execute(
+            recurring_query.options(
+                joinedload(RecurringExpense.recurring_expense_tags).joinedload(RecurringExpenseTag.user_tag)
+            )
+        )
+        recurring_expenses = recurring_result.unique().scalars().all()
+        expanded_recurring = expand_recurring_expenses(recurring_expenses, current_user.id)
+
+        if parsed_date_from:
+            expanded_recurring = [e for e in expanded_recurring if e.date >= parsed_date_from]
+        if parsed_date_to:
+            expanded_recurring = [e for e in expanded_recurring if e.date < parsed_date_to + timedelta(days=1)]
+
+        all_expenses = list(expenses) + expanded_recurring
+        total_amount = sum(e.amount for e in all_expenses)
+
+        # Calculate tag spending from combined expenses
+        tag_totals = {}
+        untagged_total = 0.0
+        untagged_count = 0
+
+        for expense in all_expenses:
+            if expense.expense_tags and len(expense.expense_tags) > 0:
+                for expense_tag in expense.expense_tags:
+                    tag_name = expense_tag.user_tag.name if expense_tag.user_tag else "Unknown"
+                    if tag_name not in tag_totals:
+                        tag_totals[tag_name] = {"amount": 0.0, "count": 0}
+                    tag_totals[tag_name]["amount"] += expense.amount
+                    tag_totals[tag_name]["count"] += 1
+            else:
+                untagged_total += expense.amount
+                untagged_count += 1
 
         tag_data = []
-        for row in rows:
-            percentage = (row.total_amount / total_amount * 100) if total_amount > 0 else 0
+        for tag_name, data in sorted(tag_totals.items(), key=lambda x: x[1]["amount"], reverse=True):
+            percentage = (data["amount"] / total_amount * 100) if total_amount > 0 else 0
             tag_data.append(TagSpending(
-                tag=row.name,
-                total_amount=float(row.total_amount),
-                expense_count=int(row.expense_count),
+                tag=tag_name,
+                total_amount=data["amount"],
+                expense_count=data["count"],
                 percentage=round(percentage, 2)
             ))
 
-        # Handle expenses without tags (expenses with no ExpenseTag entries)
-        untagged_query = select(
-            func.sum(Expense.amount).label('total_amount'),
-            func.count(Expense.id).label('expense_count')
-        ).outerjoin(ExpenseTag).filter(
-            Expense.user_id == current_user.id,
-            ExpenseTag.id == None
-        )
-
-        if date_from:
-            parsed_date_from = datetime.fromisoformat(date_from)
-            untagged_query = untagged_query.filter(Expense.date >= parsed_date_from)
-
-        if date_to:
-            parsed_date_to = datetime.fromisoformat(date_to)
-            untagged_query = untagged_query.filter(Expense.date < parsed_date_to + timedelta(days=1))
-
-        untagged_result = await db.execute(untagged_query)
-        untagged_row = untagged_result.first()
-
-        if untagged_row and untagged_row.total_amount:
-            percentage = (untagged_row.total_amount / total_amount * 100) if total_amount > 0 else 0
+        if untagged_count > 0:
+            percentage = (untagged_total / total_amount * 100) if total_amount > 0 else 0
             tag_data.append(TagSpending(
                 tag="Untagged",
-                total_amount=float(untagged_row.total_amount),
-                expense_count=int(untagged_row.expense_count),
+                total_amount=untagged_total,
+                expense_count=untagged_count,
                 percentage=round(percentage, 2)
             ))
 
@@ -566,36 +654,62 @@ async def get_spending_by_date(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get spending grouped by date for trend analysis.
+    Get spending grouped by date for trend analysis including recurring expenses.
     Returns daily totals for the specified date range.
     """
     try:
-        # Query spending by date
-        query = select(
-            func.date(Expense.date).label('expense_date'),
-            func.sum(Expense.amount).label('total_amount'),
-            func.count(Expense.id).label('expense_count')
-        ).filter(
-            Expense.user_id == current_user.id
-        ).group_by(func.date(Expense.date)).order_by(func.date(Expense.date))
+        parsed_date_from = None
+        parsed_date_to = None
 
         if date_from:
             parsed_date_from = datetime.fromisoformat(date_from)
-            query = query.filter(Expense.date >= parsed_date_from)
-
         if date_to:
             parsed_date_to = datetime.fromisoformat(date_to)
+
+        # Get all expenses
+        query = select(Expense).filter(Expense.user_id == current_user.id)
+        if parsed_date_from:
+            query = query.filter(Expense.date >= parsed_date_from)
+        if parsed_date_to:
             query = query.filter(Expense.date < parsed_date_to + timedelta(days=1))
 
         result = await db.execute(query)
-        rows = result.all()
+        expenses = result.scalars().all()
+
+        # Get recurring expenses
+        recurring_query = select(RecurringExpense).filter(
+            RecurringExpense.user_id == current_user.id
+        )
+        recurring_result = await db.execute(
+            recurring_query.options(
+                joinedload(RecurringExpense.recurring_expense_tags).joinedload(RecurringExpenseTag.user_tag)
+            )
+        )
+        recurring_expenses = recurring_result.unique().scalars().all()
+        expanded_recurring = expand_recurring_expenses(recurring_expenses, current_user.id)
+
+        if parsed_date_from:
+            expanded_recurring = [e for e in expanded_recurring if e.date >= parsed_date_from]
+        if parsed_date_to:
+            expanded_recurring = [e for e in expanded_recurring if e.date < parsed_date_to + timedelta(days=1)]
+
+        all_expenses = list(expenses) + expanded_recurring
+
+        # Group by date
+        date_totals = {}
+        for expense in all_expenses:
+            date_key = expense.date.date()
+            if date_key not in date_totals:
+                date_totals[date_key] = {"amount": 0.0, "count": 0}
+            date_totals[date_key]["amount"] += expense.amount
+            date_totals[date_key]["count"] += 1
 
         date_data = []
-        for row in rows:
+        for date_key in sorted(date_totals.keys()):
             date_data.append(DateSpending(
-                date=str(row.expense_date),
-                amount=float(row.total_amount),
-                expense_count=int(row.expense_count)
+                date=str(date_key),
+                amount=date_totals[date_key]["amount"],
+                expense_count=date_totals[date_key]["count"]
             ))
 
         return ByDateResponse(data=date_data)
@@ -731,7 +845,24 @@ async def get_expenses(
         result = await db.execute(query)
         expenses = result.unique().scalars().all()  # unique() prevents duplicates from joins
 
-        return expenses
+        # Fetch recurring expenses and expand them
+        recurring_query = select(RecurringExpense).filter(
+            RecurringExpense.user_id == current_user.id
+        )
+        recurring_result = await db.execute(
+            recurring_query.options(
+                joinedload(RecurringExpense.recurring_expense_tags).joinedload(RecurringExpenseTag.user_tag)
+            )
+        )
+        recurring_expenses = recurring_result.unique().scalars().all()
+        expanded_recurring = expand_recurring_expenses(recurring_expenses, current_user.id)
+
+        # Combine and sort by date
+        all_expenses = list(expenses) + expanded_recurring
+        all_expenses.sort(key=lambda e: e.date, reverse=True)
+
+        # Apply limit after expansion
+        return all_expenses[skip:skip + limit]
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -880,6 +1011,7 @@ async def delete_expense(
 ):
     """
     Delete an expense by ID (only if it belongs to current user).
+    Cannot delete recurring expense instances.
     """
     result = await db.execute(
         select(Expense).filter(
@@ -890,6 +1022,9 @@ async def delete_expense(
     expense = result.scalar_one_or_none()
     if expense is None:
         raise HTTPException(status_code=404, detail="Expense not found")
+
+    if expense.recurring:
+        raise HTTPException(status_code=403, detail="Cannot delete recurring expense instances. Delete the recurring expense template instead.")
 
     await db.delete(expense)
     await db.commit()
