@@ -122,34 +122,45 @@ def expand_recurring_expenses(recurring_expenses: List[RecurringExpense], user_i
 
     return expanded
 
-from contextlib import asynccontextmanager
+app = FastAPI(title="Expense Tracker API", version="1.0.0")
 
-mcp_http_app = None
 try:
-    from mcp_setup import create_mcp_app
-    mcp_instance = create_mcp_app()
-    if mcp_instance:
-        mcp_http_app = mcp_instance.http_app(path="/mcp")
-        logger.info("fastmcp_ready")
+    from fastmcp import FastMCP
+    from fastmcp.auth import GoogleProvider
+
+    GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+    BASE_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+
+    if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+        auth = GoogleProvider(
+            client_id=GOOGLE_CLIENT_ID,
+            client_secret=GOOGLE_CLIENT_SECRET,
+            base_url=BASE_URL,
+        )
+        mcp = FastMCP.from_fastapi(app=app, auth=auth)
+
+        @mcp.tool()
+        async def list_expenses(start_date: str | None = None, end_date: str | None = None, limit: int = 100) -> dict:
+            """List all user expenses."""
+            async with AsyncSessionLocal() as db:
+                query = select(Expense)
+                if start_date:
+                    query = query.filter(Expense.date >= datetime.fromisoformat(start_date))
+                if end_date:
+                    query = query.filter(Expense.date <= datetime.fromisoformat(end_date))
+                result = await db.execute(query.order_by(Expense.date.desc()).limit(limit))
+                expenses = result.scalars().all()
+                from mcp_server import serialize_expense
+                return {"expenses": [serialize_expense(e).model_dump() for e in expenses]}
+
+        logger.info("fastmcp_integrated")
+    else:
+        logger.warning("fastmcp_skipped", reason="Missing Google OAuth credentials")
 except ImportError:
     logger.warning("fastmcp_not_available")
 except Exception as e:
-    logger.warning("fastmcp_setup_failed", error=str(e))
-
-@asynccontextmanager
-async def lifespan(fastapi_app: FastAPI):
-    """Manage lifespan for FastAPI and MCP."""
-    if mcp_http_app:
-        async with mcp_http_app.lifespan(fastapi_app):
-            yield
-    else:
-        yield
-
-app = FastAPI(title="Expense Tracker API", version="1.0.0", lifespan=lifespan)
-
-if mcp_http_app:
-    app.mount("/mcp", mcp_http_app, name="mcp_server")
-    logger.info("fastmcp_mounted", path="/mcp")
+    logger.warning("fastmcp_setup_error", error=str(e))
 
 # CORS configuration
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
