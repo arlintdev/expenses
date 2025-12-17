@@ -122,8 +122,9 @@ def expand_recurring_expenses(recurring_expenses: List[RecurringExpense], user_i
 
     return expanded
 
-app = FastAPI(title="Expense Tracker API", version="1.0.0")
+from contextlib import asynccontextmanager
 
+mcp = None
 try:
     from fastmcp import FastMCP
     from fastmcp.auth import GoogleProvider
@@ -138,11 +139,14 @@ try:
             client_secret=GOOGLE_CLIENT_SECRET,
             base_url=BASE_URL,
         )
-        mcp = FastMCP.from_fastapi(app=app, auth=auth)
+        mcp = FastMCP(
+            "Expense Tracker MCP",
+            auth=auth,
+        )
 
         @mcp.tool()
         async def list_expenses(start_date: str | None = None, end_date: str | None = None, limit: int = 100) -> dict:
-            """List all user expenses."""
+            """List all user expenses with optional date filtering."""
             async with AsyncSessionLocal() as db:
                 query = select(Expense)
                 if start_date:
@@ -154,13 +158,99 @@ try:
                 from mcp_server import serialize_expense
                 return {"expenses": [serialize_expense(e).model_dump() for e in expenses]}
 
-        logger.info("fastmcp_integrated")
+        @mcp.tool()
+        async def create_expense(
+            description: str,
+            recipient: str,
+            amount: float,
+            date: str | None = None,
+            materials: str | None = None,
+            hours: float | None = None,
+            tags: list[str] | None = None,
+        ) -> dict:
+            """Create a new expense."""
+            try:
+                from mcp_server import serialize_expense
+
+                expense_date = None
+                if date:
+                    expense_date = datetime.fromisoformat(date)
+                else:
+                    expense_date = datetime.utcnow()
+
+                async with AsyncSessionLocal() as db:
+                    expense = Expense(
+                        id=str(uuid6.uuid6()),
+                        user_id="temp_user",
+                        description=description,
+                        recipient=recipient,
+                        amount=float(amount),
+                        date=expense_date,
+                        materials=materials,
+                        hours=float(hours) if hours else None,
+                    )
+                    db.add(expense)
+
+                    if tags:
+                        for tag_name in tags:
+                            result = await db.execute(
+                                select(UserTag).filter(UserTag.name == tag_name)
+                            )
+                            user_tag = result.scalar_one_or_none()
+
+                            if user_tag:
+                                expense_tag = ExpenseTag(
+                                    id=str(uuid6.uuid6()),
+                                    expense_id=expense.id,
+                                    user_tag_id=user_tag.id
+                                )
+                                db.add(expense_tag)
+
+                    await db.commit()
+                    await db.refresh(expense)
+                    return {"expense": serialize_expense(expense).model_dump()}
+            except Exception as e:
+                logger.error("create_expense_error", error=str(e))
+                return {"error": str(e)}
+
+        @mcp.tool()
+        async def delete_expense(expense_id: str) -> dict:
+            """Delete an expense by ID."""
+            try:
+                async with AsyncSessionLocal() as db:
+                    result = await db.execute(
+                        select(Expense).filter(Expense.id == expense_id)
+                    )
+                    expense = result.scalar_one_or_none()
+
+                    if not expense:
+                        return {"error": "Expense not found"}
+
+                    await db.delete(expense)
+                    await db.commit()
+
+                    return {"success": True, "message": "Expense deleted"}
+            except Exception as e:
+                logger.error("delete_expense_error", error=str(e))
+                return {"error": str(e)}
+
+        logger.info("fastmcp_initialized")
     else:
         logger.warning("fastmcp_skipped", reason="Missing Google OAuth credentials")
 except ImportError:
     logger.warning("fastmcp_not_available")
 except Exception as e:
     logger.warning("fastmcp_setup_error", error=str(e))
+
+@asynccontextmanager
+async def lifespan(fastapi_app: FastAPI):
+    if mcp:
+        async with mcp.http_app(path="/mcp").lifespan(fastapi_app):
+            yield
+    else:
+        yield
+
+app = FastAPI(title="Expense Tracker API", version="1.0.0", lifespan=lifespan)
 
 # CORS configuration
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
@@ -171,6 +261,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if mcp:
+    mcp_http_app = mcp.http_app(path="/mcp")
+    app.mount("/mcp", mcp_http_app)
+    logger.info("mcp_http_app_mounted", path="/mcp", status="ready")
 
 # Request logging middleware
 @app.middleware("http")
