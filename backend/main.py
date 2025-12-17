@@ -124,6 +124,18 @@ def expand_recurring_expenses(recurring_expenses: List[RecurringExpense], user_i
 
 app = FastAPI(title="Expense Tracker API", version="1.0.0")
 
+try:
+    from mcp_setup import create_mcp_app
+    mcp_app = create_mcp_app()
+    if mcp_app:
+        http_app = mcp_app.streamable_http_app()
+        app.mount("/mcp", http_app, name="mcp_server")
+        logger.info("fastmcp_mounted", path="/mcp")
+except ImportError:
+    logger.warning("fastmcp_not_available")
+except Exception as e:
+    logger.warning("fastmcp_setup_failed", error=str(e))
+
 # CORS configuration
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
 app.add_middleware(
