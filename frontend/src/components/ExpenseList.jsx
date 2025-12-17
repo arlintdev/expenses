@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { MdDescription, MdPerson, MdBuild, MdAccessTime, MdLocalOffer, MdCheckBox, MdDeleteOutline, MdAttachMoney, MdListAlt, MdTrendingUp, MdArrowUpward, MdArrowDownward } from 'react-icons/md';
+import { MdDescription, MdPerson, MdBuild, MdAccessTime, MdLocalOffer, MdCheckBox, MdDeleteOutline, MdAttachMoney, MdListAlt, MdTrendingUp, MdArrowUpward, MdArrowDownward, MdLoop } from 'react-icons/md';
 import TagInput from './TagInput';
 import DeleteConfirmation from './DeleteConfirmation';
 import './ExpenseList.css';
