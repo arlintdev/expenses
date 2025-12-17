@@ -777,10 +777,10 @@ async def create_expense(
         await db.commit()
         expense_id = db_expense.id
 
-        # Reload expense with tags
+        # Reload expense with tags (eagerly load relationships)
         result = await db.execute(
             select(Expense)
-            .options(joinedload(Expense.expense_tags))
+            .options(joinedload(Expense.expense_tags).joinedload(ExpenseTag.user_tag))
             .where(Expense.id == expense_id)
         )
         created_expense = result.unique().scalar_one()
