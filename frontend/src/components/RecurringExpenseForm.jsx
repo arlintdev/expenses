@@ -51,7 +51,12 @@ function RecurringExpenseForm({ onSubmit, availableTags, isSubmitting, error }) 
     if (!formData.description || !formData.recipient || !formData.amount) {
       return;
     }
-    onSubmit(formData);
+    const cleanedData = {
+      ...formData,
+      hours: formData.hours ? parseFloat(formData.hours) : null,
+      materials: formData.materials || null,
+    };
+    onSubmit(cleanedData);
   };
 
   const yearRange = Array.from({ length: 11 }, (_, i) => currentYear - 1 + i);
