@@ -163,20 +163,21 @@ function MileageLogList({ apiUrl, initialVehicleId, initialDateFrom, initialDate
       )}
 
       {!showFilters && (
-      <div className="summary-cards">
-        <div className="summary-card">
-          <div className="summary-value">{summary.totalBusinessMiles.toLocaleString()}</div>
-          <div className="summary-label">Business Miles</div>
+        <div className="summary-cards">
+          <div className="summary-card">
+            <div className="summary-value">{summary.totalBusinessMiles.toLocaleString()}</div>
+            <div className="summary-label">Business Miles</div>
+          </div>
+          <div className="summary-card">
+            <div className="summary-value">${summary.totalDeduction.toFixed(2)}</div>
+            <div className="summary-label">Total Deduction</div>
+          </div>
+          <div className="summary-card">
+            <div className="summary-value">{logs.length}</div>
+            <div className="summary-label">Total Trips</div>
+          </div>
         </div>
-        <div className="summary-card">
-          <div className="summary-value">${summary.totalDeduction.toFixed(2)}</div>
-          <div className="summary-label">Total Deduction</div>
-        </div>
-        <div className="summary-card">
-          <div className="summary-value">{logs.length}</div>
-          <div className="summary-label">Total Trips</div>
-        </div>
-      </div>
+      )}
 
       {logs.length === 0 ? (
         <div className="empty-state">
@@ -256,7 +257,6 @@ function MileageLogList({ apiUrl, initialVehicleId, initialDateFrom, initialDate
             </div>
           ))}
         </div>
-      )}
       )}
     </div>
   );
