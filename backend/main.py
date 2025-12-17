@@ -127,7 +127,10 @@ from contextlib import asynccontextmanager
 mcp = None
 try:
     from fastmcp import FastMCP
-    from fastmcp.auth import GoogleProvider
+    try:
+        from fastmcp.auth import GoogleProvider
+    except ImportError:
+        from fastmcp.server.auth.providers.google import GoogleProvider
 
     GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
     GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
