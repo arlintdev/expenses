@@ -219,9 +219,12 @@ def run_migrations():
 
 async def init_db():
     """Initialize database tables and run migrations."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
     run_migrations()
+    async with engine.begin() as conn:
+        try:
+            await conn.run_sync(Base.metadata.create_all)
+        except Exception as e:
+            print(f"⚠️  Note: Some tables may already exist from migrations: {str(e)[:100]}")
 
 async def get_db():
     """Async database session dependency for FastAPI."""
