@@ -128,10 +128,16 @@ function AddMileageModal({ isOpen, onClose, onMileageAdded, apiUrl }) {
       });
       if (response.ok) {
         const data = await response.json();
-        setAvailableTags(data.map(tag => tag.name).sort());
+        const tagArray = data.tags || data;
+        if (Array.isArray(tagArray)) {
+          setAvailableTags(tagArray.map(tag => tag.name).sort());
+        } else {
+          setAvailableTags([]);
+        }
       }
     } catch (err) {
       console.error('Error fetching tags:', err);
+      setAvailableTags([]);
     }
   };
 
