@@ -89,6 +89,8 @@ class User(Base):
     expenses = relationship("Expense", back_populates="user", cascade="all, delete-orphan")
     recurring_expenses = relationship("RecurringExpense", back_populates="user", cascade="all, delete-orphan")
     user_tags = relationship("UserTag", back_populates="user", cascade="all, delete-orphan")
+    vehicles = relationship("Vehicle", back_populates="user", cascade="all, delete-orphan")
+    mileage_logs = relationship("MileageLog", back_populates="user", cascade="all, delete-orphan")
 
 class UserTag(Base):
     """Standalone tags that belong to a user, not tied to specific expenses."""
@@ -128,6 +130,7 @@ class Expense(Base):
     date = Column(DateTime, nullable=False, default=datetime.utcnow)
     recurring = Column(Boolean, default=False, nullable=False)
     recurring_expense_id = Column(String(36), nullable=True)
+    linked_mileage_log_id = Column(String(36), ForeignKey("mileage_logs.id", ondelete="SET NULL"), nullable=True, unique=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -178,6 +181,85 @@ class RecurringExpenseTag(Base):
 
     recurring_expense = relationship("RecurringExpense", back_populates="recurring_expense_tags")
     user_tag = relationship("UserTag", backref="recurring_expense_tags")
+
+class Vehicle(Base):
+    """User's vehicles for mileage tracking."""
+    __tablename__ = "vehicles"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid6.uuid6()), index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    make = Column(String, nullable=True)
+    model = Column(String, nullable=True)
+    year = Column(Integer, nullable=True)
+    license_plate = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="vehicles")
+    mileage_logs = relationship("MileageLog", back_populates="vehicle", cascade="all, delete-orphan")
+
+class MileageLog(Base):
+    """Business trip records for mileage tracking."""
+    __tablename__ = "mileage_logs"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid6.uuid6()), index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    vehicle_id = Column(String(36), ForeignKey("vehicles.id", ondelete="CASCADE"), nullable=False, index=True)
+    date = Column(DateTime, nullable=False, index=True)
+    purpose = Column(String, nullable=False)
+    odometer_start = Column(Integer, nullable=False)
+    odometer_end = Column(Integer, nullable=False)
+    personal_miles = Column(Integer, default=0, nullable=False)
+    irs_rate = Column(Float, nullable=False)
+    linked_expense_id = Column(String(36), ForeignKey("expenses.id", ondelete="SET NULL"), nullable=True, unique=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="mileage_logs")
+    vehicle = relationship("Vehicle", back_populates="mileage_logs")
+    mileage_log_tags = relationship("MileageLogTag", back_populates="mileage_log", cascade="all, delete-orphan")
+    linked_expense = relationship("Expense", foreign_keys=[linked_expense_id], backref="mileage_log", uselist=False)
+
+    @property
+    def business_miles(self):
+        """Calculate business miles: total miles minus personal miles."""
+        return (self.odometer_end - self.odometer_start) - self.personal_miles
+
+    @property
+    def deductible_amount(self):
+        """Calculate deductible amount: business miles * IRS rate."""
+        return self.business_miles * self.irs_rate
+
+    @property
+    def tags(self):
+        """Return list of tag names from mileage_log_tags."""
+        return [mlt.user_tag.name for mlt in self.mileage_log_tags if mlt.user_tag]
+
+class MileageLogTag(Base):
+    """Junction table for many-to-many relationship between mileage logs and user tags."""
+    __tablename__ = "mileage_log_tags"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid6.uuid6()), index=True)
+    mileage_log_id = Column(String(36), ForeignKey("mileage_logs.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_tag_id = Column(String(36), ForeignKey("user_tags.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    mileage_log = relationship("MileageLog", back_populates="mileage_log_tags")
+    user_tag = relationship("UserTag", backref="mileage_log_tags")
+
+class IRSMileageRate(Base):
+    """Historical IRS mileage rates for tax compliance."""
+    __tablename__ = "irs_mileage_rates"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid6.uuid6()), index=True)
+    year = Column(Integer, nullable=False, unique=True, index=True)
+    rate = Column(Float, nullable=False)
+    effective_date = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 def run_migrations():
     """

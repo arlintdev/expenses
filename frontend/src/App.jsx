@@ -5,6 +5,8 @@ import DashboardRoute from './routes/DashboardRoute';
 import ExpensesRoute from './routes/ExpensesRoute';
 import ExpenseEditRoute from './routes/ExpenseEditRoute';
 import TagsRoute from './routes/TagsRoute';
+import VehiclesRoute from './routes/VehiclesRoute';
+import MileageRoute from './routes/MileageRoute';
 import SettingsRoute from './routes/SettingsRoute';
 import AdminRoute from './routes/AdminRoute';
 import BottomNav from './components/BottomNav';
@@ -121,6 +123,18 @@ function AppContent() {
               <line x1="7" y1="7" x2="7.01" y2="7" />
             </svg>
             <span>Tags</span>
+          </Link>
+
+          <Link
+            to="/vehicles"
+            className={`nav-link ${activeTab === 'vehicles' ? 'active' : ''}`}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 17h14v-5l-3-3H8l-3 3v5z"/>
+              <circle cx="7" cy="19" r="2"/>
+              <circle cx="17" cy="19" r="2"/>
+            </svg>
+            <span>Vehicles</span>
           </Link>
 
           <Link
@@ -250,6 +264,8 @@ function AppContent() {
           <Route path="/expenses/:id/edit" element={<ExpenseEditRoute apiUrl={API_URL} />} />
           <Route path="/tags" element={<TagsRoute apiUrl={API_URL} />} />
           <Route path="/categories" element={<Navigate to="/tags" replace />} />
+          <Route path="/vehicles" element={<VehiclesRoute apiUrl={API_URL} />} />
+          <Route path="/mileage" element={<MileageRoute apiUrl={API_URL} />} />
           <Route path="/settings" element={<SettingsRoute apiUrl={API_URL} />} />
           <Route path="/admin" element={<AdminRoute apiUrl={API_URL} />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
