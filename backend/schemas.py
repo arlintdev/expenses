@@ -207,6 +207,14 @@ class MileageLogBase(BaseModel):
     personal_miles: int = Field(default=0, ge=0, description="Personal miles during trip")
     tags: Optional[List[str]] = Field(default_factory=list, description="Tags for categorization")
 
+    @field_validator('date')
+    @classmethod
+    def strip_timezone(cls, v):
+        """Strip timezone info for PostgreSQL TIMESTAMP WITHOUT TIME ZONE compatibility."""
+        if v and v.tzinfo is not None:
+            return v.replace(tzinfo=None)
+        return v
+
     @field_validator('odometer_end')
     @classmethod
     def validate_odometer(cls, v, info):
