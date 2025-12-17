@@ -2136,6 +2136,7 @@ async def get_current_irs_rate(db: AsyncSession, year: int = None) -> float:
 
 async def create_linked_expense_from_mileage(
     mileage_log: MileageLog,
+    user_tag_ids: list,
     db: AsyncSession
 ) -> Expense:
     """Create expense record from mileage log."""
@@ -2154,10 +2155,10 @@ async def create_linked_expense_from_mileage(
     await db.flush()
 
     # Copy tags from mileage log to expense
-    for mileage_tag in mileage_log.mileage_log_tags:
+    for user_tag_id in user_tag_ids:
         expense_tag = ExpenseTag(
             expense_id=expense.id,
-            user_tag_id=mileage_tag.user_tag_id
+            user_tag_id=user_tag_id
         )
         db.add(expense_tag)
 
@@ -2232,7 +2233,8 @@ async def create_mileage_log(
     db.add(db_mileage_log)
     await db.flush()
 
-    # Add tags
+    # Add tags and collect user_tag_ids
+    user_tag_ids = []
     if mileage_log.tags:
         for tag_name in mileage_log.tags:
             if tag_name and tag_name.strip():
@@ -2257,11 +2259,12 @@ async def create_mileage_log(
                     user_tag_id=user_tag.id
                 )
                 db.add(mileage_log_tag)
+                user_tag_ids.append(user_tag.id)
 
     await db.flush()
 
     # Create linked expense
-    linked_expense = await create_linked_expense_from_mileage(db_mileage_log, db)
+    linked_expense = await create_linked_expense_from_mileage(db_mileage_log, user_tag_ids, db)
     db_mileage_log.linked_expense_id = linked_expense.id
 
     # Update vehicle's last odometer reading
