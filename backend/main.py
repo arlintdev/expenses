@@ -127,10 +127,6 @@ from contextlib import asynccontextmanager
 mcp = None
 try:
     from fastmcp import FastMCP
-    try:
-        from fastmcp.auth import GoogleProvider
-    except ImportError:
-        from fastmcp.server.auth.providers.google import GoogleProvider
 
     GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
     GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
@@ -139,6 +135,11 @@ try:
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
         logger.warning("fastmcp_skipped", reason="Missing Google OAuth credentials")
     else:
+        try:
+            from fastmcp.auth import GoogleProvider
+        except ImportError:
+            from fastmcp.server.auth.providers.google import GoogleProvider
+
         auth = GoogleProvider(
             client_id=GOOGLE_CLIENT_ID,
             client_secret=GOOGLE_CLIENT_SECRET,

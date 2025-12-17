@@ -85,7 +85,7 @@ fakeredis[lua]==2.33.0
     # via pydocket
 fastapi==0.124.4
     # via -r requirements.txt
-fastmcp==2.14.1
+fastmcp>=2.14.1
     # via -r requirements.txt
 google-auth==2.41.1
     # via
