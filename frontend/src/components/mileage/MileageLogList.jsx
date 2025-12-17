@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { MdDirectionsCar, MdDelete, MdLocalOffer, MdCalendarToday } from 'react-icons/md';
 import './MileageLogList.css';
 
-function MileageLogList({ apiUrl, initialVehicleId, initialDateFrom, initialDateTo, refreshTrigger }) {
+function MileageLogList({ apiUrl, initialVehicleId, initialDateFrom, initialDateTo, refreshTrigger, showFilters = true, showHeader = true, onLogDeleted }) {
   const { getAuthHeader } = useAuth();
   const [logs, setLogs] = useState([]);
   const [vehicles, setVehicles] = useState([]);
@@ -14,8 +14,17 @@ function MileageLogList({ apiUrl, initialVehicleId, initialDateFrom, initialDate
   const [summary, setSummary] = useState({ totalBusinessMiles: 0, totalDeduction: 0 });
 
   useEffect(() => {
-    fetchVehicles();
+    if (showFilters) {
+      fetchVehicles();
+    }
   }, []);
+
+  useEffect(() => {
+    // Update vehicle filter when initialVehicleId changes
+    if (initialVehicleId && initialVehicleId !== vehicleFilter) {
+      setVehicleFilter(initialVehicleId);
+    }
+  }, [initialVehicleId]);
 
   useEffect(() => {
     fetchLogs();
@@ -74,6 +83,9 @@ function MileageLogList({ apiUrl, initialVehicleId, initialDateFrom, initialDate
 
       if (response.ok) {
         fetchLogs();
+        if (onLogDeleted) {
+          onLogDeleted();
+        }
       }
     } catch (error) {
       console.error('Error deleting mileage log:', error);
@@ -100,10 +112,13 @@ function MileageLogList({ apiUrl, initialVehicleId, initialDateFrom, initialDate
 
   return (
     <div className="mileage-log-list">
-      <div className="list-header">
-        <h2>Mileage Logs</h2>
-      </div>
+      {showHeader && (
+        <div className="list-header">
+          <h2>Mileage Logs {vehicleFilter && vehicles.find(v => v.id === vehicleFilter) ? `- ${vehicles.find(v => v.id === vehicleFilter).name}` : ''}</h2>
+        </div>
+      )}
 
+      {showFilters && (
       <div className="filters">
         <div className="filter-group">
           <label>Vehicle</label>
@@ -132,7 +147,7 @@ function MileageLogList({ apiUrl, initialVehicleId, initialDateFrom, initialDate
             onChange={(e) => setDateTo(e.target.value)}
           />
         </div>
-        {(vehicleFilter || dateFrom || dateTo) && (
+        {(vehicleFilter || dateFrom || dateTo) && !initialVehicleId && (
           <button
             className="clear-filters"
             onClick={() => {
@@ -145,7 +160,9 @@ function MileageLogList({ apiUrl, initialVehicleId, initialDateFrom, initialDate
           </button>
         )}
       </div>
+      )}
 
+      {!showFilters && (
       <div className="summary-cards">
         <div className="summary-card">
           <div className="summary-value">{summary.totalBusinessMiles.toLocaleString()}</div>
@@ -239,6 +256,7 @@ function MileageLogList({ apiUrl, initialVehicleId, initialDateFrom, initialDate
             </div>
           ))}
         </div>
+      )}
       )}
     </div>
   );

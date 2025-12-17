@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { MdDirectionsCar, MdEdit, MdDelete, MdAdd } from 'react-icons/md';
+import { MdDirectionsCar, MdEdit, MdDelete, MdAdd, MdAttachMoney, MdListAlt, MdTrendingUp } from 'react-icons/md';
+import MileageLogList from './MileageLogList';
 import './VehicleManager.css';
 
 function VehicleManager({ apiUrl }) {
   const { getAuthHeader } = useAuth();
   const [vehicles, setVehicles] = useState([]);
+  const [mileageLogs, setMileageLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showInactive, setShowInactive] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [showAddForm, setShowAddForm] = useState(false);
+  const [selectedVehicleId, setSelectedVehicleId] = useState(null);
   const [newVehicle, setNewVehicle] = useState({
     name: '',
     make: '',
@@ -21,7 +24,15 @@ function VehicleManager({ apiUrl }) {
 
   useEffect(() => {
     fetchVehicles();
+    fetchAllMileageLogs();
   }, [showInactive]);
+
+  useEffect(() => {
+    // Auto-select first vehicle if none selected
+    if (vehicles.length > 0 && !selectedVehicleId) {
+      setSelectedVehicleId(vehicles[0].id);
+    }
+  }, [vehicles]);
 
   const fetchVehicles = async () => {
     try {
@@ -36,6 +47,20 @@ function VehicleManager({ apiUrl }) {
       console.error('Error fetching vehicles:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAllMileageLogs = async () => {
+    try {
+      const response = await fetch(`${apiUrl}/api/mileage-logs?limit=10000`, {
+        headers: getAuthHeader()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setMileageLogs(data);
+      }
+    } catch (error) {
+      console.error('Error fetching mileage logs:', error);
     }
   };
 
@@ -127,8 +152,67 @@ function VehicleManager({ apiUrl }) {
     return <div className="loading">Loading vehicles...</div>;
   }
 
+  // Calculate metrics
+  const totalBusinessMiles = mileageLogs.reduce((sum, log) => sum + log.business_miles, 0);
+  const totalDeduction = mileageLogs.reduce((sum, log) => sum + log.deductible_amount, 0);
+  const totalTrips = mileageLogs.length;
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
+
+  const handleVehicleClick = (vehicleId) => {
+    setSelectedVehicleId(vehicleId === selectedVehicleId ? null : vehicleId);
+  };
+
   return (
     <div className="vehicle-manager">
+      {/* Metrics Summary */}
+      <div className="metrics-summary">
+        <div className="summary-card">
+          <div className="card-icon" style={{ background: 'linear-gradient(135deg, #4caf50 0%, #388e3c 100%)' }}>
+            <MdDirectionsCar size={28} />
+          </div>
+          <div className="card-content">
+            <div className="card-label">Business Miles</div>
+            <div className="card-value">{totalBusinessMiles.toLocaleString()}</div>
+          </div>
+        </div>
+
+        <div className="summary-card">
+          <div className="card-icon" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+            <MdAttachMoney size={28} />
+          </div>
+          <div className="card-content">
+            <div className="card-label">Total Deduction</div>
+            <div className="card-value">{formatCurrency(totalDeduction)}</div>
+          </div>
+        </div>
+
+        <div className="summary-card">
+          <div className="card-icon" style={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
+            <MdListAlt size={28} />
+          </div>
+          <div className="card-content">
+            <div className="card-label">Total Trips</div>
+            <div className="card-value">{totalTrips}</div>
+          </div>
+        </div>
+
+        <div className="summary-card">
+          <div className="card-icon" style={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }}>
+            <MdTrendingUp size={28} />
+          </div>
+          <div className="card-content">
+            <div className="card-label">Vehicles</div>
+            <div className="card-value">{vehicles.filter(v => v.is_active).length}</div>
+          </div>
+        </div>
+      </div>
+
       <div className="vehicle-header">
         <h2>Vehicles</h2>
         <div className="header-actions">
@@ -208,10 +292,16 @@ function VehicleManager({ apiUrl }) {
             <p>No vehicles yet. Add your first vehicle to start tracking mileage.</p>
           </div>
         ) : (
-          vehicles.map((vehicle) => (
+          vehicles.map((vehicle) => {
+            const vehicleLogs = mileageLogs.filter(log => log.vehicle_id === vehicle.id);
+            const vehicleMiles = vehicleLogs.reduce((sum, log) => sum + log.business_miles, 0);
+
+            return (
             <div
               key={vehicle.id}
-              className={`vehicle-card ${!vehicle.is_active ? 'inactive' : ''}`}
+              className={`vehicle-card ${!vehicle.is_active ? 'inactive' : ''} ${selectedVehicleId === vehicle.id ? 'selected' : ''}`}
+              onClick={() => editingId !== vehicle.id && handleVehicleClick(vehicle.id)}
+              style={{ cursor: editingId === vehicle.id ? 'default' : 'pointer' }}
             >
               {editingId === vehicle.id ? (
                 <div className="vehicle-edit-form">
@@ -276,6 +366,9 @@ function VehicleManager({ apiUrl }) {
                         Last odometer: {vehicle.last_odometer_reading.toLocaleString()} mi
                       </p>
                     )}
+                    <p className="vehicle-trips">
+                      {vehicleLogs.length} trip{vehicleLogs.length !== 1 ? 's' : ''} • {vehicleMiles.toLocaleString()} mi
+                    </p>
                     {!vehicle.is_active && (
                       <span className="archived-badge">Archived</span>
                     )}
@@ -283,14 +376,20 @@ function VehicleManager({ apiUrl }) {
                   <div className="vehicle-actions">
                     <button
                       className="icon-button"
-                      onClick={() => handleStartEdit(vehicle)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStartEdit(vehicle);
+                      }}
                       title="Edit vehicle"
                     >
                       <MdEdit size={18} />
                     </button>
                     <button
                       className="icon-button delete-button"
-                      onClick={() => handleDelete(vehicle.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(vehicle.id);
+                      }}
                       title="Archive vehicle"
                     >
                       <MdDelete size={18} />
@@ -299,9 +398,23 @@ function VehicleManager({ apiUrl }) {
                 </>
               )}
             </div>
-          ))
+            );
+          })
         )}
       </div>
+
+      {/* Mileage Logs List */}
+      {selectedVehicleId && (
+        <div className="mileage-section">
+          <MileageLogList
+            apiUrl={apiUrl}
+            initialVehicleId={selectedVehicleId}
+            showFilters={false}
+            showHeader={true}
+            onLogDeleted={() => fetchAllMileageLogs()}
+          />
+        </div>
+      )}
     </div>
   );
 }
