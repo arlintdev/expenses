@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'add_recurring_expenses'
-down_revision: Union[str, Sequence[str], None] = 'migrate_all_to_uuid'
+down_revision: Union[str, Sequence[str], None] = 'add_is_admin'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
