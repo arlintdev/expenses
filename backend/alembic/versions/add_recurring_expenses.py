@@ -20,6 +20,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    # Add columns to expenses table
+    op.add_column('expenses', sa.Column('recurring', sa.Boolean(), nullable=False, server_default='false'))
+    op.add_column('expenses', sa.Column('recurring_expense_id', sa.String(36), nullable=True))
+
     op.create_table('recurring_expenses',
         sa.Column('id', sa.String(36), nullable=False),
         sa.Column('user_id', sa.String(36), nullable=False),
@@ -59,3 +63,5 @@ def downgrade() -> None:
     op.drop_table('recurring_expense_tags')
     op.drop_index(op.f('ix_recurring_expenses_id'), table_name='recurring_expenses')
     op.drop_table('recurring_expenses')
+    op.drop_column('expenses', 'recurring_expense_id')
+    op.drop_column('expenses', 'recurring')
