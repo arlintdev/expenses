@@ -80,10 +80,24 @@
   gap: 8px;
   cursor: pointer;
   font-size: 14px;
+  padding: 8px 12px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.toggle-inactive:hover {
+  background: #e8e8e8;
 }
 
 .toggle-inactive input[type="checkbox"] {
   cursor: pointer;
+  width: 18px;
+  height: 18px;
+}
+
+.toggle-inactive span {
+  user-select: none;
 }
 
 .add-vehicle-button {
@@ -361,6 +375,15 @@
 
 [data-theme="dark"] .mileage-section {
   border-top-color: #444;
+}
+
+[data-theme="dark"] .toggle-inactive {
+  background: #333;
+  color: #e0e0e0;
+}
+
+[data-theme="dark"] .toggle-inactive:hover {
+  background: #3a3a3a;
 }
 
 [data-theme="dark"] .form-row input,
