@@ -64,7 +64,7 @@ async def mcp_metadata():
     return {
         "name": "Expenses MCP Server",
         "version": "1.0.0",
-        "description": "MCP server for expense tracking",
+        "description": "MCP server for expense tracking with OAuth authentication",
         "authorization": {
             "type": "oauth2",
             "authorizationUrl": f"{MCP_SERVER_URL}/oauth/authorize",
@@ -195,69 +195,6 @@ async def oauth_revoke(token: str = Query(...)):
     """OAuth token revocation endpoint."""
     logger.info("oauth_revoke")
     return {"success": True}
-
-@mcp_app.get("/mcp/tools")
-async def mcp_list_tools(authorization: str = Query(None)):
-    """List available MCP tools."""
-
-    if not authorization:
-        return JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content={
-                "error": "unauthorized",
-                "error_description": "Authorization required",
-            },
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
-
-    user_info = await verify_mcp_token(token)
-    if not user_info:
-        return JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content={
-                "error": "invalid_token",
-                "error_description": "Invalid or expired token",
-            },
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    tools = await list_tools()
-    return {"tools": tools}
-
-@mcp_app.post("/mcp/tools/call")
-async def mcp_call_tool(
-    name: str = Query(...),
-    arguments: dict = {},
-    authorization: str = Query(None),
-):
-    """Call an MCP tool with authorization."""
-
-    if not authorization:
-        return JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"error": "unauthorized"},
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
-
-    user_info = await verify_mcp_token(token)
-    if not user_info:
-        return JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"error": "invalid_token"},
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    user_context = UserContext(
-        user_id=user_info["user_id"],
-        email=user_info["email"],
-    )
-
-    result = await handle_tool_call(name, arguments, user_context)
-    return json.loads(result) if isinstance(result, str) else result
 
 @mcp_app.get("/health")
 async def health():
