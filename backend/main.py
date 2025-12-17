@@ -122,19 +122,34 @@ def expand_recurring_expenses(recurring_expenses: List[RecurringExpense], user_i
 
     return expanded
 
-app = FastAPI(title="Expense Tracker API", version="1.0.0")
+from contextlib import asynccontextmanager
 
+mcp_http_app = None
 try:
     from mcp_setup import create_mcp_app
-    mcp_app = create_mcp_app()
-    if mcp_app:
-        http_app = mcp_app.streamable_http_app()
-        app.mount("/mcp", http_app, name="mcp_server")
-        logger.info("fastmcp_mounted", path="/mcp")
+    mcp_instance = create_mcp_app()
+    if mcp_instance:
+        mcp_http_app = mcp_instance.http_app(path="/mcp")
+        logger.info("fastmcp_ready")
 except ImportError:
     logger.warning("fastmcp_not_available")
 except Exception as e:
     logger.warning("fastmcp_setup_failed", error=str(e))
+
+@asynccontextmanager
+async def lifespan(fastapi_app: FastAPI):
+    """Manage lifespan for FastAPI and MCP."""
+    if mcp_http_app:
+        async with mcp_http_app.lifespan(fastapi_app):
+            yield
+    else:
+        yield
+
+app = FastAPI(title="Expense Tracker API", version="1.0.0", lifespan=lifespan)
+
+if mcp_http_app:
+    app.mount("/mcp", mcp_http_app, name="mcp_server")
+    logger.info("fastmcp_mounted", path="/mcp")
 
 # CORS configuration
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
