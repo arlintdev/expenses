@@ -133,7 +133,9 @@ try:
     GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
     BASE_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
-    if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        logger.warning("fastmcp_skipped", reason="Missing Google OAuth credentials")
+    else:
         auth = GoogleProvider(
             client_id=GOOGLE_CLIENT_ID,
             client_secret=GOOGLE_CLIENT_SECRET,
@@ -235,12 +237,10 @@ try:
                 return {"error": str(e)}
 
         logger.info("fastmcp_initialized")
-    else:
-        logger.warning("fastmcp_skipped", reason="Missing Google OAuth credentials")
-except ImportError:
-    logger.warning("fastmcp_not_available")
+except ImportError as e:
+    logger.warning("fastmcp_not_available", error=str(e))
 except Exception as e:
-    logger.warning("fastmcp_setup_error", error=str(e))
+    logger.warning("fastmcp_setup_error", error=str(e), error_type=type(e).__name__)
 
 @asynccontextmanager
 async def lifespan(fastapi_app: FastAPI):
